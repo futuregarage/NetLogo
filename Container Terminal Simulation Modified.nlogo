@@ -15,9 +15,10 @@ trucks-own [
   cargo ;the container that I want to get
   my-group
   my-stack
-  my-start-time ;creation time of each truck
+  my-start-time ; creation time of each truck
   waiting ; true if I am waiting outside the port, waiting to get in because there is another truck in my stack
-  current-idle ; time of idling
+  current-idle ; current time spent idling (waiting to be serviced in the stack)
+  my-crane ; crane that will pick me
 ]
 
 ;ticks: each tick is one second
@@ -32,6 +33,8 @@ globals [
   ticks-to-move
   idle-time
   num-trucks-idling
+  total-reshuffle ; total reshuffling activity
+  total-reshuffle-time ; total reshuffling time
 
 ]
 
@@ -69,14 +72,14 @@ to setup
   create-cranes 1 [
     set shape "arrow"
     set heading 0
-    set color blue
+    set color cyan
     set goal []
     set-my-position position-in-yard 0 0 -1
   ]
   create-cranes 1 [
     set shape "arrow"
     set heading 0
-    set color orange
+    set color red
     set goal []
     set-my-position position-in-yard 4 41 -1
   ]
@@ -93,7 +96,8 @@ to go
     set cargo one-of containers with [my-truck = nobody]
     if (cargo = nobody) [die stop] ;all stacks are full!!
     ask cargo [
-      set color one-of (list red blue orange green)
+;      set color one-of (list red blue orange green)
+      set color red
     ]
     goto-container
     set my-group [my-group] of cargo
@@ -153,6 +157,9 @@ to go-crane
   if (empty? goal or (opportunistic? and item 1 goal = "goal-position")) [;no goal position or opportunistic, set new goal
     ifelse (any? trucks with [not waiting])[
       let goalp []
+
+
+      ;;;;;; =============== crane choice of utility function starts =================
       if (crane-pick-goal-function = "random") [set goalp pick-goal-position]
       if (crane-pick-goal-function = "longest") [set goalp pick-goal-position-longest]
       if (crane-pick-goal-function = "closest") [set goalp pick-goal-position-closest]
@@ -165,6 +172,10 @@ to go-crane
         ]
         ]
       if (crane-pick-goal-function = "eq-2") [set goalp pick-goal-position-eq-2]
+      ;;;;;;; ================= crane choice of utility function ends =======================
+
+
+
       ifelse (goalp != nobody) [ ; if a valid group and stack values are returned
         set goal (sentence ticks-to-move "goal-position" item 0 goalp item 1 goalp)
       ][
@@ -175,6 +186,7 @@ to go-crane
       stop
     ]
   ]
+
   if (item 1 goal = "goal-position") [ ;move towards goal-position
     let goal-position-xy position-in-yard (item 2 goal) (item 3 goal) -1
     goto-position (item 2 goal) (item 3 goal)
@@ -214,13 +226,17 @@ to deliver-container [the-container]
     ask the-container [die]
     let containers-with-truck the-containers-in-stack with [my-truck != nobody]
     if (any? containers-with-truck) [
-      ask (one-of [my-truck] of containers-with-truck) [ ;if any trucks are waiting for this spot, pick one and mobe him here
+      ask (one-of [my-truck] of containers-with-truck) [ ;if any trucks are waiting for this spot, pick one and move him here
         goto-container
         set waiting false
       ]
     ]
     stop
   ][ ;the-container is not at the top, move top container to smallest column in this stack
+
+    set total-reshuffle total-reshuffle + 1 ; record the reshuffling activities done
+    set total-reshuffle-time total-reshuffle-time + ticks-to-rehandle ; record total time to reshuffle
+
     let the-container-column ([ycor] of the-container - ycor) ; the value is 0
     let other-columns remove the-container-column (list -1 -2 -3 -4 -5 -6)
     let min-column-height min (map [ i -> count containers-at 0 i] other-columns)
@@ -234,6 +250,8 @@ to deliver-container [the-container]
     ]
     ;to make the moving of each container take 3 steps uncomment the following line
     set goal (list ticks-to-rehandle "deliver-container" the-container)
+
+
   ]
 end
 
@@ -296,12 +314,10 @@ to-report pick-goal-position-eq-1-commited [current-goal]
   if (chosen-truck = nobody) [
     report current-goal]
   let utility-of-chosen-truck [utility-eq-1 myself] of chosen-truck
-
   let current-truck one-of trucks with [my-group = item 0 current-goal and my-stack = item 1 current-goal]
   if (current-truck = nobody) [
     report [group-stack] of chosen-truck]
   let utility-of-current-truck [utility-eq-1 myself] of current-truck
-
   ask current-truck [set color pink]
   ifelse (utility-of-chosen-truck > utility-of-current-truck + decommitment-penalty) [ ;is the new goal that much better than the current?
     ask chosen-truck [set color yellow]
@@ -530,18 +546,18 @@ to do-plots
 end
 
 to update-idling-time
-  set num-trucks-idling count trucks with [color != yellow and waiting != true] ; update the number of idling trucks
-  ask trucks with [color != yellow and waiting != true] [
+  set num-trucks-idling count trucks with [waiting != true] ; update the number of idling trucks
+  ask trucks with [waiting != true] [
     set current-idle current-idle + 1 ; update the lifetime of the idling time (from the creation time until current tick)
     set idle-time idle-time + 1 ; update idle time + 1 for each tick
   ]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-11
-170
-1195
-419
+8
+166
+1192
+415
 -1
 -1
 14.17
@@ -566,9 +582,9 @@ ticks
 
 BUTTON
 19
-19
+12
 90
-52
+45
 NIL
 setup
 NIL
@@ -582,10 +598,10 @@ NIL
 1
 
 BUTTON
-26
-110
+21
+101
 89
-143
+134
 NIL
 go
 T
@@ -600,9 +616,9 @@ NIL
 
 BUTTON
 21
-62
-84
-95
+55
+90
+88
 NIL
 go
 NIL
@@ -623,8 +639,8 @@ SLIDER
 truck-arrival
 truck-arrival
 0
-10
-1.0
+2
+0.5
 .1
 1
 trucks/minute
@@ -703,7 +719,7 @@ CHOOSER
 crane-pick-goal-function
 crane-pick-goal-function
 "random" "longest" "closest" "closest-longest" "eq-1" "eq-2"
-4
+5
 
 SWITCH
 122
@@ -728,21 +744,21 @@ semi-committed?
 -1000
 
 MONITOR
-560
-10
-709
-55
-Trucks in Service
+566
+13
+715
+58
+Trucks to be Serviced
 count trucks with [color = yellow]
 17
 1
 11
 
 MONITOR
-560
-55
-709
-100
+566
+58
+715
+103
 Trucks Waiting at Gate
 count trucks with [waiting = true]
 17
@@ -772,10 +788,10 @@ total-wait-time / num-trucks-serviced
 11
 
 MONITOR
-560
-100
-709
-145
+566
+103
+715
+148
 Current Total Trucks
 count trucks
 17
@@ -787,7 +803,7 @@ MONITOR
 58
 909
 103
-Total Idling Time
+Current Idling Time
 idle-time
 17
 1
@@ -843,6 +859,92 @@ num-trucks-serviced
 17
 1
 11
+
+BUTTON
+1228
+250
+1364
+283
+NIL
+inspect crane 1000
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+1230
+307
+1366
+340
+NIL
+inspect crane 1001
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+MONITOR
+1113
+11
+1253
+56
+Total Reshuffling Done
+total-reshuffle
+17
+1
+11
+
+MONITOR
+1112
+55
+1253
+100
+Time Spent Reshuffling
+total-reshuffle-time
+17
+1
+11
+
+MONITOR
+1112
+101
+1254
+146
+Reshuffle / Wait Time (%)
+total-reshuffle-time / total-wait-time * 100
+2
+1
+11
+
+PLOT
+848
+436
+1161
+586
+Wait Time vs Idling
+ticks
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+true
+"" ""
+PENS
+"Wait Time" 1.0 0 -2674135 true "" "ifelse num-trucks-serviced > 1 [plot total-wait-time / num-trucks-serviced] [plot 0]"
+"Idle Time" 1.0 0 -13345367 true "" "ifelse num-trucks-idling > 0 [plot idle-time / num-trucks-idling] [plot 0]"
 
 @#$#@#$#@
 # Container Port Simulation  
