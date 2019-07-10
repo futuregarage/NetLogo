@@ -620,13 +620,18 @@ to do-plots
   set-current-plot "Average Idling Time"
   if num-trucks-idling > 0 [plot idle-time / num-trucks-idling]
   set-current-plot "Wait Time Analysis"
-  if total-wait-time > 1 [
+  if num-trucks-serviced > 1 [
     set-current-plot-pen "Reshuffle Time"
     plot total-reshuffle-time / total-wait-time
     set-current-plot-pen "Service Time"
-    plot total-service-time / total-wait-time
+    ifelse total-service-time > total-reshuffle-time [
+    plot (total-service-time - total-reshuffle-time) / total-wait-time ; service-time include reshuffle time, so it is deducted to gain service time WITHOUT reshuffle time
+    ][plot 0]
     set-current-plot-pen "Remainder Time"
-    plot (total-wait-time - total-reshuffle-time - total-service-time) / total-wait-time
+    ifelse total-wait-time > total-service-time [
+    plot (total-wait-time - total-service-time) / total-wait-time
+    ][plot 0]
+
   ]
 end
 
@@ -645,7 +650,7 @@ GRAPHICS-WINDOW
 415
 -1
 -1
-14.17
+5.434
 1
 10
 1
@@ -717,10 +722,10 @@ NIL
 1
 
 SLIDER
-322
-16
-514
-49
+269
+84
+461
+117
 truck-arrival
 truck-arrival
 0
@@ -748,8 +753,8 @@ false
 "" ""
 PENS
 "default" 1.0 0 -16777216 true "" ""
-"on-service" 1.0 0 -2674135 true "" "plot count trucks with [on-service = true]"
-"waiting" 1.0 0 -1184463 true "" "plot count trucks with [waiting = true]"
+"on-service" 1.0 0 -10899396 true "" "plot count trucks with [on-service = true]"
+"waiting" 1.0 0 -13345367 true "" "plot count trucks with [waiting = true]"
 
 PLOT
 206
@@ -788,9 +793,9 @@ PENS
 "default" 1.0 0 -16777216 true "" ""
 
 SWITCH
-123
+103
 17
-278
+258
 50
 show-start-time?
 show-start-time?
@@ -799,19 +804,19 @@ show-start-time?
 -1000
 
 CHOOSER
-321
-72
-515
-117
+267
+28
+461
+73
 crane-pick-goal-function
 crane-pick-goal-function
 "random" "longest" "closest" "closest-longest" "eq-1" "eq-2" "eq-1-coordinated" "eq-2-coordinated"
-7
+6
 
 SWITCH
-122
+102
 57
-278
+258
 90
 opportunistic?
 opportunistic?
@@ -820,9 +825,9 @@ opportunistic?
 -1000
 
 SWITCH
-121
+101
 97
-278
+258
 130
 semi-committed?
 semi-committed?
@@ -831,9 +836,9 @@ semi-committed?
 -1000
 
 MONITOR
-566
+475
 13
-694
+603
 58
 Trucks on Service
 count trucks with [on-service = true]
@@ -842,9 +847,9 @@ count trucks with [on-service = true]
 11
 
 MONITOR
-566
+475
 58
-695
+604
 103
 Trucks Waiting at Gate
 count trucks with [waiting = true]
@@ -853,9 +858,9 @@ count trucks with [waiting = true]
 11
 
 MONITOR
-888
+790
 54
-1030
+932
 99
 NIL
 total-wait-time
@@ -864,9 +869,9 @@ total-wait-time
 11
 
 MONITOR
-889
+791
 103
-1031
+933
 148
 Average Wait Time
 total-wait-time / num-trucks-serviced
@@ -875,9 +880,9 @@ total-wait-time / num-trucks-serviced
 11
 
 MONITOR
-566
+475
 103
-696
+605
 148
 Current Total Trucks
 count trucks
@@ -886,9 +891,9 @@ count trucks
 11
 
 MONITOR
-706
+612
 57
-875
+781
 102
 Current Idling Time
 idle-time
@@ -915,9 +920,9 @@ PENS
 "default" 1.0 0 -16777216 true "" ""
 
 MONITOR
-706
+612
 11
-874
+780
 56
 Trucks Waiting at Stack (Idling)
 num-trucks-idling
@@ -926,9 +931,9 @@ num-trucks-idling
 11
 
 MONITOR
-707
+613
 104
-875
+781
 149
 Average Idling Time
 idle-time / num-trucks-idling
@@ -937,9 +942,9 @@ idle-time / num-trucks-idling
 11
 
 MONITOR
-887
+789
 10
-1031
+933
 55
 Total Trucks Serviced
 num-trucks-serviced
@@ -982,9 +987,9 @@ NIL
 1
 
 MONITOR
-1037
+939
 10
-1177
+1079
 55
 NIL
 total-reshuffle
@@ -993,9 +998,9 @@ total-reshuffle
 11
 
 MONITOR
-1036
+938
 54
-1177
+1079
 99
 NIL
 total-reshuffle-time
@@ -1004,9 +1009,9 @@ total-reshuffle-time
 11
 
 MONITOR
-1036
+938
 100
-1178
+1080
 145
 Reshuffle / Wait Time (%)
 total-reshuffle-time / total-wait-time * 100
@@ -1034,9 +1039,9 @@ PENS
 "Idle Time" 1.0 0 -13345367 true "" "ifelse num-trucks-idling > 0 [plot idle-time / num-trucks-idling] [plot 0]"
 
 MONITOR
-1180
+1082
 53
-1308
+1213
 98
 NIL
 total-service-time
@@ -1045,12 +1050,12 @@ total-service-time
 11
 
 MONITOR
-1180
+1082
 99
-1310
+1212
 144
 Service / Wait Time (%)
-total-service-time / total-wait-time * 100
+(total-service-time) / total-wait-time * 100
 2
 1
 11
@@ -1058,8 +1063,8 @@ total-service-time / total-wait-time * 100
 PLOT
 792
 431
-1154
-581
+1191
+580
 Wait Time Analysis
 NIL
 NIL
