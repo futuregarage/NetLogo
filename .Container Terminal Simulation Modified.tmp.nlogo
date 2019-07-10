@@ -21,6 +21,8 @@ trucks-own [
   current-idle ; current time spent idling (waiting to be serviced in the stack)
   my-crane ; crane that will pick me
   my-utility ; my utility
+  on-service ; truck is on service T/F
+  service-time
 ]
 
 ;ticks: each tick is one second
@@ -37,6 +39,7 @@ globals [
   num-trucks-idling
   total-reshuffle ; total reshuffling activity
   total-reshuffle-time ; total reshuffling time
+  total-service-time
 
 ]
 
@@ -97,7 +100,8 @@ to go
     set waiting false
     set my-start-time ticks
     set my-crane nobody ; no crane booked this truck yet
-    set my-utility -99999; set utitlity to lowes random value -99999
+    set my-utility -99999; set utility to lowes random value -99999
+    set on-service false ; set on-service false at first
     set cargo one-of containers with [my-truck = nobody]
     if (cargo = nobody) [die stop] ;all stacks are full!!
     ask cargo [
@@ -205,6 +209,13 @@ to go-crane
     ]
     if (item 0 goal-position-xy = xcor and item 1 goal-position-xy = ycor) [;we are at the goal, next time deliver container
       let the-truck trucks-in-this-stack
+
+    ;;;;;;
+    ask the-truck [
+    set on-service true
+    set service-time ticks] ; set on-service on truck true
+    ;;;;;
+
       set goal (list ticks-to-deliver "deliver-container" (item 0 [cargo] of the-truck))
     ]
     stop
@@ -221,16 +232,21 @@ end
 ;moves the-container to the truck it belongs to, if the-container has no other containers on top of itself
 ;if the-container has another container on top then the top container is moved to the lowest pile in the stack
 to deliver-container [the-container]
+
+
   let pile-height max ([z-cor] of containers-on the-container)
   ifelse ([z-cor] of the-container = pile-height) [ ;the-container is at the top
     let the-truck trucks-in-this-stack
     let the-containers-in-stack []
+
+    set num-trucks-serviced num-trucks-serviced + 1
     ask the-truck [
       set the-containers-in-stack containers-in-stack
       set total-wait-time total-wait-time + (ticks - my-start-time)
       set idle-time idle-time - current-idle ; update the idling time by reducing value of serviced trucks
+      set total-service-time total-service-time + (ticks - service-time) ; update service time
       die]
-    set num-trucks-serviced num-trucks-serviced + 1
+
     set goal []
     ask the-container [die]
     let containers-with-truck the-containers-in-stack with [my-truck != nobody]
@@ -378,7 +394,6 @@ to-report pick-goal-position-eq-2-coordinated
   let chosen-truck max-one-of (trucks with [not waiting]) [utility-eq-2 myself]
   if (chosen-truck = nobody) [
     report nobody]
-
   let this-crane-utility [utility-eq-2 myself] of chosen-truck
   let previous-crane-utility [my-utility] of chosen-truck
   let previous-crane [my-crane] of chosen-truck
@@ -604,6 +619,15 @@ to do-plots
   if num-trucks-serviced > 1 [plot total-wait-time / num-trucks-serviced]
   set-current-plot "Average Idling Time"
   if num-trucks-idling > 0 [plot idle-time / num-trucks-idling]
+  set-current-plot "Wait Time Analysis"
+  if total-wait-time > 1 [
+    set-current-plot-pen "Reshuffle Time"
+    plot total-reshuffle-time / total-wait-time
+    set-current-plot-pen "Service Time"
+    plot total-service-time / total-wait-time
+    set-current-plot-pen "Remainder Time"
+    plot (total-wait-time - total-reshuffle-time - total-service-time) / total-wait-time
+  ]
 end
 
 to update-idling-time
@@ -708,10 +732,10 @@ trucks/minute
 HORIZONTAL
 
 PLOT
-13
-438
-198
-588
+12
+431
+197
+581
 Number of Trucks
 NIL
 NIL
@@ -724,12 +748,14 @@ false
 "" ""
 PENS
 "default" 1.0 0 -16777216 true "" ""
+"on-service" 1.0 0 -2674135 true "" "plot count trucks with [on-service = true]"
+"waiting" 1.0 0 -1184463 true "" "plot count trucks with [waiting = true]"
 
 PLOT
-213
-433
-392
-583
+206
+432
+385
+582
 Number of Trucks Serviced
 NIL
 NIL
@@ -744,10 +770,10 @@ PENS
 "default" 1.0 0 -955883 true "" ""
 
 PLOT
-411
-434
-602
-584
+390
+596
+581
+746
 Average Wait Time
 Tick
 Avg. Wait Time (ticks)
@@ -800,17 +826,17 @@ SWITCH
 130
 semi-committed?
 semi-committed?
-1
+0
 1
 -1000
 
 MONITOR
 566
 13
-715
+694
 58
-Trucks to be Serviced
-count trucks with [color = yellow]
+Trucks on Service
+count trucks with [on-service = true]
 17
 1
 11
@@ -818,7 +844,7 @@ count trucks with [color = yellow]
 MONITOR
 566
 58
-715
+695
 103
 Trucks Waiting at Gate
 count trucks with [waiting = true]
@@ -827,20 +853,20 @@ count trucks with [waiting = true]
 11
 
 MONITOR
-937
+888
 54
-1079
+1030
 99
-Total Wait Time
+NIL
 total-wait-time
 17
 1
 11
 
 MONITOR
-938
+889
 103
-1080
+1031
 148
 Average Wait Time
 total-wait-time / num-trucks-serviced
@@ -851,7 +877,7 @@ total-wait-time / num-trucks-serviced
 MONITOR
 566
 103
-715
+696
 148
 Current Total Trucks
 count trucks
@@ -860,10 +886,10 @@ count trucks
 11
 
 MONITOR
-740
-58
-909
-103
+706
+57
+875
+102
 Current Idling Time
 idle-time
 17
@@ -871,10 +897,10 @@ idle-time
 11
 
 PLOT
-620
-434
-804
-584
+592
+595
+776
+745
 Average Idling Time
 NIL
 NIL
@@ -889,10 +915,10 @@ PENS
 "default" 1.0 0 -16777216 true "" ""
 
 MONITOR
-740
-12
-908
-57
+706
+11
+874
+56
 Trucks Waiting at Stack (Idling)
 num-trucks-idling
 17
@@ -900,10 +926,10 @@ num-trucks-idling
 11
 
 MONITOR
-741
-105
-909
-150
+707
+104
+875
+149
 Average Idling Time
 idle-time / num-trucks-idling
 17
@@ -911,9 +937,9 @@ idle-time / num-trucks-idling
 11
 
 MONITOR
-936
+887
 10
-1080
+1031
 55
 Total Trucks Serviced
 num-trucks-serviced
@@ -956,32 +982,32 @@ NIL
 1
 
 MONITOR
-1113
-11
-1253
-56
-Total Reshuffling Done
+1037
+10
+1177
+55
+NIL
 total-reshuffle
 17
 1
 11
 
 MONITOR
-1112
-55
-1253
-100
-Time Spent Reshuffling
+1036
+54
+1177
+99
+NIL
 total-reshuffle-time
 17
 1
 11
 
 MONITOR
-1112
-101
-1254
-146
+1036
+100
+1178
+145
 Reshuffle / Wait Time (%)
 total-reshuffle-time / total-wait-time * 100
 2
@@ -989,10 +1015,10 @@ total-reshuffle-time / total-wait-time * 100
 11
 
 PLOT
-848
-436
-1161
-586
+391
+431
+774
+581
 Wait Time vs Idling
 ticks
 NIL
@@ -1006,6 +1032,48 @@ true
 PENS
 "Wait Time" 1.0 0 -2674135 true "" "ifelse num-trucks-serviced > 1 [plot total-wait-time / num-trucks-serviced] [plot 0]"
 "Idle Time" 1.0 0 -13345367 true "" "ifelse num-trucks-idling > 0 [plot idle-time / num-trucks-idling] [plot 0]"
+
+MONITOR
+1180
+53
+1308
+98
+NIL
+total-service-time
+17
+1
+11
+
+MONITOR
+1180
+99
+1310
+144
+Service / Wait Time (%)
+total-service-time / total-wait-time * 100
+2
+1
+11
+
+PLOT
+792
+431
+1154
+581
+Wait Time Analysis
+NIL
+NIL
+0.0
+10.0
+0.0
+1.0
+true
+true
+"" ""
+PENS
+"Reshuffle Time" 1.0 0 -10899396 true "" ""
+"Service Time" 1.0 0 -2674135 true "" ""
+"Remainder Time" 1.0 0 -13345367 true "" ""
 
 @#$#@#$#@
 # Container Port Simulation  
