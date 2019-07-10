@@ -378,6 +378,7 @@ to-report pick-goal-position-eq-2-coordinated
   let chosen-truck max-one-of (trucks with [not waiting]) [utility-eq-2 myself]
   if (chosen-truck = nobody) [
     report nobody]
+
   let this-crane-utility [utility-eq-2 myself] of chosen-truck
   let previous-crane-utility [my-utility] of chosen-truck
   let previous-crane [my-crane] of chosen-truck
