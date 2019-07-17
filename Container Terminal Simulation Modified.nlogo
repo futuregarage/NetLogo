@@ -21,8 +21,8 @@ trucks-own [
   current-idle ; current time spent idling (waiting to be serviced in the stack)
   my-crane ; crane that will pick me
   my-utility ; my utility
-  on-service ; truck is on service T/F
-  service-time
+  on-service ; truck is on service True/False
+  service-time ; starting ticks when truck is being serviced
 ]
 
 ;ticks: each tick is one second
@@ -616,9 +616,9 @@ to do-plots
   set-current-plot "Number of Trucks Serviced"
   plot num-trucks-serviced
   set-current-plot "Average Wait Time"
-  if num-trucks-serviced > 1 [plot total-wait-time / num-trucks-serviced]
+  plot plot-idle
   set-current-plot "Average Idling Time"
-  if num-trucks-idling > 0 [plot idle-time / num-trucks-idling]
+  plot plot-wait
   set-current-plot "Wait Time Analysis"
   if num-trucks-serviced > 1 [
     set-current-plot-pen "Reshuffle Time"
@@ -637,20 +637,38 @@ end
 
 to update-idling-time
   set num-trucks-idling count trucks with [waiting != true] ; update the number of idling trucks
-  ask trucks with [waiting != true] [
+  ask trucks with [waiting != true and on-service != true] [
     set current-idle current-idle + 1 ; update the lifetime of the idling time (from the creation time until current tick)
     set idle-time idle-time + 1 ; update idle time + 1 for each tick
+  ]
+end
+
+to-report plot-wait
+  let zero 0
+  ifelse num-trucks-serviced > 0 [
+    report total-wait-time / num-trucks-serviced
+  ][
+    report zero
+  ]
+end
+
+to-report plot-idle
+  let zero 0
+  ifelse num-trucks-idling > 0 [
+    report idle-time / num-trucks-idling
+  ][
+    report zero
   ]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
 8
 166
-1192
-415
+1194
+416
 -1
 -1
-5.434
+14.2
 1
 10
 1
@@ -730,7 +748,7 @@ truck-arrival
 truck-arrival
 0
 2
-0.5
+1.0
 .1
 1
 trucks/minute
@@ -1394,6 +1412,32 @@ NetLogo 6.0.4
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
+<experiments>
+  <experiment name="runtest" repetitions="10" sequentialRunOrder="false" runMetricsEveryStep="true">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>total-wait-time / num-trucks-serviced</metric>
+    <metric>idle-time / num-trucks-idling</metric>
+    <enumeratedValueSet variable="truck-arrival">
+      <value value="0.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="semi-committed?">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="show-start-time?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="crane-pick-goal-function">
+      <value value="&quot;eq-1&quot;"/>
+      <value value="&quot;eq-2&quot;"/>
+      <value value="&quot;eq-1-coordinated&quot;"/>
+      <value value="&quot;eq-2-coordinated&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="opportunistic?">
+      <value value="true"/>
+    </enumeratedValueSet>
+  </experiment>
+</experiments>
 @#$#@#$#@
 @#$#@#$#@
 default
