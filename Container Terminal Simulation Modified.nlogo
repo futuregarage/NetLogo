@@ -9,7 +9,8 @@ containers-own [
 ]
 breed [cranes crane]
 cranes-own [
-  goal; [#ticks-to-wait "goal-position" group stack] of the goal position for the crane, or ["deliver-containter" container-who], or []
+  goal ; [#ticks-to-wait "goal-position" group stack] of the goal position for the crane, or ["deliver-containter" container-who], or []
+  travel-distance ; monitor distance traveled by crane
 ]
 breed [trucks truck]
 trucks-own [
@@ -203,6 +204,9 @@ to go-crane
   if (item 1 goal = "goal-position") [ ;move towards goal-position
     let goal-position-xy position-in-yard (item 2 goal) (item 3 goal) -1
     goto-position (item 2 goal) (item 3 goal)
+
+    set travel-distance travel-distance + 1 ; travel distance of the crane + 1
+
     if (not any? trucks-on (patch (item 0 goal-position-xy) (item 1 goal-position-xy - 7))) [ ;if there is no truck at the goal then reset goal
         set goal []
         stop
@@ -631,8 +635,9 @@ to do-plots
     ifelse total-wait-time > total-service-time [
     plot (total-wait-time - total-service-time) / total-wait-time ; get remainder time: wait time outside service time
     ][plot 0]
-
   ]
+  set-current-plot "Crane Utility" ; total distance traveled for each trucks serviced
+  plot plot-crane
 end
 
 to update-idling-time
@@ -641,6 +646,7 @@ to update-idling-time
     set current-idle current-idle + 1 ; update the lifetime of the idling time (from the creation time until current tick)
     set idle-time idle-time + 1 ; update idle time + 1 for each tick
   ]
+
 end
 
 to-report plot-wait
@@ -659,6 +665,22 @@ to-report plot-idle
   ][
     report zero
   ]
+end
+
+to-report plot-crane
+  let zero 0
+  ifelse num-trucks-serviced > 1 [
+    report crane-movement / num-trucks-serviced
+  ][
+    report zero
+  ]
+end
+
+to-report crane-movement
+  let travel-1 [travel-distance] of (crane 1000)
+  let travel-2 [travel-distance] of (crane 1001)
+  let summary travel-1 + travel-2
+  report summary
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -829,7 +851,7 @@ CHOOSER
 crane-pick-goal-function
 crane-pick-goal-function
 "random" "longest" "closest" "closest-longest" "eq-1" "eq-2" "eq-1-coordinated" "eq-2-coordinated"
-6
+7
 
 SWITCH
 102
@@ -849,7 +871,7 @@ SWITCH
 130
 semi-committed?
 semi-committed?
-0
+1
 1
 -1000
 
@@ -1097,6 +1119,46 @@ PENS
 "Reshuffle Time" 1.0 0 -10899396 true "" ""
 "Service Time" 1.0 0 -2674135 true "" ""
 "Remainder Time" 1.0 0 -13345367 true "" ""
+
+MONITOR
+1014
+598
+1120
+643
+Total Emission
+crane-movement
+17
+1
+11
+
+PLOT
+795
+595
+995
+745
+Crane Utility
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -13345367 true "" ""
+
+MONITOR
+1014
+654
+1120
+699
+NIL
+plot-crane
+17
+1
+11
 
 @#$#@#$#@
 # Container Port Simulation  
@@ -1413,13 +1475,43 @@ NetLogo 6.0.4
 @#$#@#$#@
 @#$#@#$#@
 <experiments>
-  <experiment name="runtest" repetitions="10" sequentialRunOrder="false" runMetricsEveryStep="true">
+  <experiment name="TA 0.5" repetitions="30" sequentialRunOrder="false" runMetricsEveryStep="false">
     <setup>setup</setup>
     <go>go</go>
-    <metric>total-wait-time / num-trucks-serviced</metric>
-    <metric>idle-time / num-trucks-idling</metric>
+    <metric>num-trucks-serviced</metric>
+    <metric>plot-idle</metric>
+    <metric>plot-wait</metric>
+    <metric>crane-movement</metric>
+    <metric>plot-crane</metric>
     <enumeratedValueSet variable="truck-arrival">
       <value value="0.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="semi-committed?">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="show-start-time?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="crane-pick-goal-function">
+      <value value="&quot;eq-1&quot;"/>
+      <value value="&quot;eq-2&quot;"/>
+      <value value="&quot;eq-1-coordinated&quot;"/>
+      <value value="&quot;eq-2-coordinated&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="opportunistic?">
+      <value value="true"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="TA 1.0" repetitions="30" sequentialRunOrder="false" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>num-trucks-serviced</metric>
+    <metric>plot-idle</metric>
+    <metric>plot-wait</metric>
+    <metric>crane-movement</metric>
+    <metric>plot-crane</metric>
+    <enumeratedValueSet variable="truck-arrival">
+      <value value="1"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="semi-committed?">
       <value value="false"/>
