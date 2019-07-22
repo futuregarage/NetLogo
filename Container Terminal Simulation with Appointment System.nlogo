@@ -108,7 +108,9 @@ to go
 
 ; block occupation update
   update-block-occupation
-  queue-time-based
+; queue function
+  if (queue-function = "time-based") [queue-time-based]
+  if (queue-function = "distance-based") [queue-distance-based]
 
   create-trucks (random-poisson trucks-per-tick) [ ;Poisson arrival rate
     set shape "truck"
@@ -757,6 +759,9 @@ to capacity-check
   ]]
 end
 
+;;;;;;;;;;;;;;;;
+;;;;; queue function
+;;;;;;;;;;;;;;;;
 to queue-time-based ; time-based queue function, the longer truck wait the higher its utility
   if block-1-occupation < capacity-threshold [
     let chosen-truck min-one-of (trucks with [waiting = true and pycor = 20]) [my-start-time] ; choose truck with the longest wait time, or first in first out
@@ -801,6 +806,44 @@ to queue-time-based ; time-based queue function, the longer truck wait the highe
   ]
 end
 
+to queue-distance-based ; distance-based queue function, the closer the truck the higher its utility
+  let block 0
+  if block-1-occupation < capacity-threshold [
+    set block 1
+    queue-distance-based-function block
+  ]
+  if block-2-occupation < capacity-threshold [
+    set block 2
+    queue-distance-based-function block
+  ]
+  if block-3-occupation < capacity-threshold [
+    set block 3
+    queue-distance-based-function block
+  ]
+  if block-4-occupation < capacity-threshold [
+    set block 4
+    queue-distance-based-function block
+  ]
+end
+
+to queue-distance-based-function [block]
+    let nearest-target max-one-of (trucks with [my-block = block and my-crane != nobody]) [my-utility] ; choose truck that already have crane assigned
+    ifelse nearest-target = nobody [stop] ; if return nobody, stop
+    [
+      let nearest-cargo [cargo] of nearest-target ; choose the container that belongs to nearest-target
+      let chosen-cargo min-one-of (containers with [my-block = block and my-truck != nobody ]) [distance nearest-cargo] ; choose the closest container to nearest-cargo
+      let chosen-truck one-of (trucks with [cargo = chosen-cargo])
+      ifelse chosen-truck = nobody [stop][
+        ask chosen-truck [
+          set waiting false
+          goto-container
+          stack-slot-check
+;          set trucks-from-queue trucks-from-queue + 1 ; only to check if the trucks successfully get in from this function
+    ]
+  ]
+  ]
+end
+
 to update-block-occupation
   let block-capacity 40
   set block-1-occupation count trucks with [my-block = 1] / block-capacity
@@ -823,11 +866,11 @@ end
 GRAPHICS-WINDOW
 8
 166
-1194
-473
+1057
+438
 -1
 -1
-14.2
+12.5422
 1
 10
 1
@@ -900,9 +943,9 @@ NIL
 
 SLIDER
 269
-84
+68
 461
-117
+101
 truck-arrival
 truck-arrival
 0
@@ -982,9 +1025,9 @@ show-start-time?
 
 CHOOSER
 267
-28
+12
 461
-73
+57
 crane-pick-goal-function
 crane-pick-goal-function
 "random" "longest" "closest" "closest-longest" "eq-1" "eq-2" "eq-1-coordinated" "eq-2-coordinated"
@@ -1306,17 +1349,17 @@ capacity-threshold
 capacity-threshold
 0
 1
-0.25
+0.1
 0.01
 1
 NIL
 HORIZONTAL
 
 MONITOR
-1203
-303
-1320
-348
+1063
+251
+1180
+296
 NIL
 block-1-occupation
 17
@@ -1324,10 +1367,10 @@ block-1-occupation
 11
 
 MONITOR
-1321
-302
-1438
-347
+1181
+250
+1298
+295
 NIL
 block-2-occupation
 17
@@ -1335,10 +1378,10 @@ block-2-occupation
 11
 
 MONITOR
-1203
-353
-1320
-398
+1063
+301
+1180
+346
 NIL
 block-3-occupation
 17
@@ -1346,15 +1389,25 @@ block-3-occupation
 11
 
 MONITOR
-1323
-352
-1440
-397
+1183
+300
+1300
+345
 NIL
 block-4-occupation
 17
 1
 11
+
+CHOOSER
+268
+106
+406
+151
+queue-function
+queue-function
+"distance-based" "time-based"
+0
 
 @#$#@#$#@
 # Container Port Simulation  
