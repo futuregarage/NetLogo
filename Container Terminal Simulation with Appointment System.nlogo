@@ -108,7 +108,7 @@ to go
 
 ; block occupation update
   update-block-occupation
-  queue-procedure
+  queue-time-based
 
   create-trucks (random-poisson trucks-per-tick) [ ;Poisson arrival rate
     set shape "truck"
@@ -757,7 +757,7 @@ to capacity-check
   ]]
 end
 
-to queue-procedure ; time-based queue function, the longer truck wait the higher its utility
+to queue-time-based ; time-based queue function, the longer truck wait the higher its utility
   if block-1-occupation < capacity-threshold [
     let chosen-truck min-one-of (trucks with [waiting = true and pycor = 20]) [my-start-time] ; choose truck with the longest wait time, or first in first out
     ifelse chosen-truck = nobody [stop][
@@ -1306,17 +1306,17 @@ capacity-threshold
 capacity-threshold
 0
 1
-1.0
+0.25
 0.01
 1
 NIL
 HORIZONTAL
 
 MONITOR
-1212
-196
-1329
-241
+1203
+303
+1320
+348
 NIL
 block-1-occupation
 17
@@ -1324,10 +1324,10 @@ block-1-occupation
 11
 
 MONITOR
-1211
-247
-1328
-292
+1321
+302
+1438
+347
 NIL
 block-2-occupation
 17
@@ -1335,10 +1335,10 @@ block-2-occupation
 11
 
 MONITOR
-1209
-297
-1326
-342
+1203
+353
+1320
+398
 NIL
 block-3-occupation
 17
@@ -1346,10 +1346,10 @@ block-3-occupation
 11
 
 MONITOR
-1209
-347
-1326
-392
+1323
+352
+1440
+397
 NIL
 block-4-occupation
 17
