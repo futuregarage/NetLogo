@@ -43,7 +43,11 @@ globals [
   total-reshuffle ; total reshuffling activity
   total-reshuffle-time ; total reshuffling time
   total-service-time
-
+  block-1-occupation
+  block-2-occupation
+  block-3-occupation
+  block-4-occupation
+  trucks-from-queue
 ]
 
 to setup
@@ -68,6 +72,9 @@ to setup
     set pcolor grey]
   ask patches with [(pycor >=  item 0 crane-road-ycors and pycor <= item 1 crane-road-ycors) and (member? pxcor crane-road-xcors)][
     set pcolor grey]
+
+  ask patches with [pycor >= 17][
+    set pcolor yellow]
 
   create-containers 1000 [
     set z-cor 0
@@ -98,6 +105,11 @@ end
 to go
   if ticks >= 14400 [ stop ]  ; stop after 4800 ticks which is equal to 4 hours
   let trucks-per-tick truck-arrival / 60 ;truck-arrival is in trucks/minute, convert to trucks/second since each tick is 1 second
+
+; block occupation update
+  update-block-occupation
+  queue-procedure
+
   create-trucks (random-poisson trucks-per-tick) [ ;Poisson arrival rate
     set shape "truck"
     set color pink
@@ -120,11 +132,11 @@ to go
     ifelse show-start-time?
     [ set label my-start-time ] ;; the label is set to be the value of the my-start-time
     [ set label "" ]     ;; the label is set to an empty text value
-    if (any? other trucks-here) [ ;someone is already here, go to the waiting spot
-      setxy 0 16
-      set waiting true
-      set my-block 0 ; set my block to 0 if the truck is outside the terminal
-    ]
+
+;;;; new capacity check function
+    capacity-check ; check the capacity for each blocks
+    stack-slot-check ; check if there is already truck in the destination
+;;;;
 
     ask cargo [
       set color red
@@ -567,6 +579,7 @@ end
 to goto-container
   setxy ([xcor] of cargo) ([ycor] of cargo)
   set ycor (ycor - (6 - [my-row] of cargo))
+  set label my-start-time
   define-block
 end
 
@@ -626,9 +639,9 @@ to do-plots
   set-current-plot "Number of Trucks Serviced"
   plot num-trucks-serviced
   set-current-plot "Average Wait Time"
-  plot plot-idle
-  set-current-plot "Average Idling Time"
   plot plot-wait
+  set-current-plot "Average Idling Time"
+  plot plot-idle
   set-current-plot "Wait Time Analysis"
   if num-trucks-serviced > 1 [
     set-current-plot-pen "Reshuffle Time"
@@ -695,12 +708,123 @@ to define-block ; function to define their block location; block 1= north west, 
   if (xcor < 41 and ycor < 7) [set my-block 3]
   if (xcor > 41 and ycor < 7) [set my-block 4]
 end
+
+to truck-queue
+  let y 0
+  if my-block = 1 [set y 20] ; define ycor for the queue
+  if my-block = 2 [set y 19]
+  if my-block = 3 [set y 18]
+  if my-block = 4 [set y 17]
+  let x count turtles-on patches with [pycor = y]  ; define xcor for the queue
+  setxy x y
+  set label x
+  if (any? other trucks-here) [ ; if any trucks here, find the leftmost empty position
+    set x 0
+    loop [
+      setxy x y
+      if (not any? other trucks-here) [
+        set label x
+        stop]
+      set x x + 1
+    ]
+  ]
+end
+
+to capacity-check
+  if my-block = 1 [
+    if block-1-occupation >= capacity-threshold [
+      truck-queue ; new queue function
+      set waiting true
+      set my-block 0 ; set my block to 0 if the truck is outside the terminal
+  ]]
+  if my-block = 2 [
+    if block-2-occupation >= capacity-threshold [
+      truck-queue ; new queue function
+      set waiting true
+      set my-block 0 ; set my block to 0 if the truck is outside the terminal
+  ]]
+  if my-block = 3 [
+    if block-3-occupation >= capacity-threshold [
+      truck-queue ; new queue function
+      set waiting true
+      set my-block 0 ; set my block to 0 if the truck is outside the terminal
+  ]]
+  if my-block = 4 [
+    if block-4-occupation >= capacity-threshold [
+      truck-queue ; new queue function
+      set waiting true
+      set my-block 0 ; set my block to 0 if the truck is outside the terminal
+  ]]
+end
+
+to queue-procedure ; time-based queue function, the longer truck wait the higher its utility
+  if block-1-occupation < capacity-threshold [
+    let chosen-truck min-one-of (trucks with [waiting = true and pycor = 20]) [my-start-time] ; choose truck with the longest wait time, or first in first out
+    ifelse chosen-truck = nobody [stop][
+    ask chosen-truck [
+      set waiting false
+;      set trucks-from-queue trucks-from-queue + 1 ; only to check if the trucks successfully get in from this function
+      goto-container
+      stack-slot-check
+    ]
+  ]
+  ]
+  if block-2-occupation < capacity-threshold [
+    let chosen-truck min-one-of (trucks with [waiting = true and pycor = 19]) [my-start-time] ; choose truck with the longest wait time, or first in first out
+    ifelse chosen-truck = nobody [stop][
+    ask chosen-truck [
+      set waiting false
+      goto-container
+      stack-slot-check
+    ]
+  ]
+  ]
+  if block-3-occupation < capacity-threshold [
+    let chosen-truck min-one-of (trucks with [waiting = true and pycor = 18]) [my-start-time] ; choose truck with the longest wait time, or first in first out
+    ifelse chosen-truck = nobody [stop][
+    ask chosen-truck [
+      set waiting false
+      goto-container
+      stack-slot-check
+    ]
+  ]
+  ]
+  if block-4-occupation < capacity-threshold [
+    let chosen-truck min-one-of (trucks with [waiting = true and pycor = 17]) [my-start-time] ; choose truck with the longest wait time, or first in first out
+    ifelse chosen-truck = nobody [stop][
+    ask chosen-truck [
+      set waiting false
+      goto-container
+      stack-slot-check
+    ]
+  ]
+  ]
+end
+
+to update-block-occupation
+  let block-capacity 40
+  set block-1-occupation count trucks with [my-block = 1] / block-capacity
+  set block-2-occupation count trucks with [my-block = 2] / block-capacity
+  set block-3-occupation count trucks with [my-block = 3] / block-capacity
+  set block-4-occupation count trucks with [my-block = 4] / block-capacity
+end
+
+to stack-slot-check ; check if there is already truck in the destination
+    if (any? other trucks-here) [ ;someone is already here, go to the waiting spot
+;     setxy 0 16 ; default truck waiting location outside the terminal
+;;;;;;;
+      truck-queue ; new queue function
+;;;;;;;
+      set waiting true
+      set my-block 0 ; set my block to 0 if the truck is outside the terminal
+    ]
+end
 @#$#@#$#@
 GRAPHICS-WINDOW
 8
 166
 1194
-416
+473
 -1
 -1
 14.2
@@ -716,7 +840,7 @@ GRAPHICS-WINDOW
 0
 82
 0
-16
+20
 1
 1
 1
@@ -783,17 +907,17 @@ truck-arrival
 truck-arrival
 0
 2
-1.0
+2.0
 .1
 1
 trucks/minute
 HORIZONTAL
 
 PLOT
-12
-431
-197
-581
+7
+498
+192
+648
 Number of Trucks
 NIL
 NIL
@@ -810,10 +934,10 @@ PENS
 "waiting" 1.0 0 -13345367 true "" "plot count trucks with [waiting = true]"
 
 PLOT
-206
-432
-385
-582
+201
+499
+380
+649
 Number of Trucks Serviced
 NIL
 NIL
@@ -828,10 +952,10 @@ PENS
 "default" 1.0 0 -955883 true "" ""
 
 PLOT
-390
-596
-581
-746
+385
+663
+576
+813
 Average Wait Time
 Tick
 Avg. Wait Time (ticks)
@@ -864,7 +988,7 @@ CHOOSER
 crane-pick-goal-function
 crane-pick-goal-function
 "random" "longest" "closest" "closest-longest" "eq-1" "eq-2" "eq-1-coordinated" "eq-2-coordinated"
-7
+6
 
 SWITCH
 102
@@ -948,17 +1072,17 @@ MONITOR
 57
 781
 102
-Current Idling Time
+Total Current Wait Time
 idle-time
 17
 1
 11
 
 PLOT
-592
-595
-776
-745
+587
+662
+771
+812
 Average Idling Time
 NIL
 NIL
@@ -988,7 +1112,7 @@ MONITOR
 104
 781
 149
-Average Idling Time
+Current Avg. Wait Time
 idle-time / num-trucks-idling
 17
 1
@@ -1006,10 +1130,10 @@ num-trucks-serviced
 11
 
 BUTTON
-1228
-250
-1364
-283
+1230
+55
+1366
+88
 NIL
 inspect crane 1000
 NIL
@@ -1023,10 +1147,10 @@ NIL
 1
 
 BUTTON
-1230
-307
-1366
-340
+1232
+112
+1368
+145
 NIL
 inspect crane 1001
 NIL
@@ -1073,10 +1197,10 @@ total-reshuffle-time / total-wait-time * 100
 11
 
 PLOT
-391
-431
-774
-581
+386
+498
+769
+648
 Wait Time vs Idling
 ticks
 NIL
@@ -1114,10 +1238,10 @@ Service / Wait Time (%)
 11
 
 PLOT
-792
-431
-1191
-580
+787
+498
+1186
+647
 Wait Time Analysis
 NIL
 NIL
@@ -1134,10 +1258,10 @@ PENS
 "Remainder Time" 1.0 0 -13345367 true "" ""
 
 MONITOR
-1014
-598
-1120
-643
+1009
+665
+1115
+710
 Total Emission
 crane-movement
 17
@@ -1145,10 +1269,10 @@ crane-movement
 11
 
 PLOT
-795
-595
-995
-745
+790
+662
+990
+812
 Crane Utility
 NIL
 NIL
@@ -1163,12 +1287,71 @@ PENS
 "default" 1.0 0 -13345367 true "" ""
 
 MONITOR
-1014
-654
-1120
-699
+1009
+721
+1115
+766
 NIL
 plot-crane
+17
+1
+11
+
+SLIDER
+1090
+10
+1262
+43
+capacity-threshold
+capacity-threshold
+0
+1
+1.0
+0.01
+1
+NIL
+HORIZONTAL
+
+MONITOR
+1212
+196
+1329
+241
+NIL
+block-1-occupation
+17
+1
+11
+
+MONITOR
+1211
+247
+1328
+292
+NIL
+block-2-occupation
+17
+1
+11
+
+MONITOR
+1209
+297
+1326
+342
+NIL
+block-3-occupation
+17
+1
+11
+
+MONITOR
+1209
+347
+1326
+392
+NIL
+block-4-occupation
 17
 1
 11
