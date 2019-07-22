@@ -689,7 +689,7 @@ to-report crane-movement
   report summary
 end
 
-to define-block ; function to define their block location; block 1= north west, block 2= north east, block 3= south west, block 4= south east
+to define-block ; function to define their block location block 1= north west, block 2= north east, block 3= south west, block 4= south east
   if (xcor < 41 and ycor > 7) [set my-block 1]
   if (xcor > 41 and ycor > 7) [set my-block 2]
   if (xcor < 41 and ycor < 7) [set my-block 3]
