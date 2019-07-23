@@ -116,6 +116,7 @@ to go
 ; queue function
   if (queue-function = "time-based") [queue-time-based]
   if (queue-function = "distance-based") [queue-distance-based]
+  if (queue-function = "crane-based") [queue-crane-based]
 
   create-trucks (random-poisson trucks-per-tick) [ ;Poisson arrival rate
     set shape "truck"
@@ -140,10 +141,12 @@ to go
     [ set label my-start-time ] ;; the label is set to be the value of the my-start-time
     [ set label "" ]     ;; the label is set to an empty text value
 
-;;;; new capacity check function
-    capacity-check ; check the capacity for each blocks
+
+    ;;;; new capacity check function
     stack-slot-check ; check if there is already truck in the destination
-;;;;
+    capacity-check ; check the capacity for this truck's block
+    ;;;;
+
 
     ask cargo [
       set color red
@@ -230,7 +233,7 @@ to go-crane
     goto-position (item 2 goal) (item 3 goal)
 
     set travel-distance travel-distance + 1 ; travel distance of the crane + 1
-    define-bloc
+    define-block ; update my-block location
 
     if (not any? trucks-on (patch (item 0 goal-position-xy) (item 1 goal-position-xy - 7))) [ ;if there is no truck at the goal then reset goal
         set goal []
@@ -281,6 +284,7 @@ to deliver-container [the-container]
     let containers-with-truck the-containers-in-stack with [my-truck != nobody]
     if (any? containers-with-truck) [
       ask (one-of [my-truck] of containers-with-truck) [ ;if any trucks are waiting for this spot, pick one and move him here
+
         goto-container
         set waiting false
       ]
@@ -840,7 +844,7 @@ to queue-distance-based-function [block]
     if chosen-cargo = nobody [stop]
     ask chosen-cargo [
       ask my-truck [
-        if waiting = true [stop] ; if the chosen truck is already there
+        if waiting = false [stop] ; if the chosen truck is already there
         set waiting false
         goto-container
         stack-slot-check
@@ -849,6 +853,47 @@ to queue-distance-based-function [block]
   ]
 end
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;; CRANE-DISTANCE-BASED-QUEUE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+to queue-crane-based ; queue crane based, prioritize truck in queue that have highest utility based on the crane's distance-based function
+  let block 0
+  if block-1-occupation < capacity-threshold [
+    set block 1
+    queue-crane-based-function block
+  ]
+  if block-2-occupation < capacity-threshold [
+    set block 2
+    queue-crane-based-function block
+  ]
+  if block-3-occupation < capacity-threshold [
+    set block 3
+    queue-crane-based-function block
+  ]
+  if block-4-occupation < capacity-threshold [
+    set block 4
+    queue-crane-based-function block
+  ]
+end
+
+to queue-crane-based-function [block]
+  let the-crane cranes with [my-block = block]
+  if the-crane = nobody [stop]
+  ask the-crane [
+    let block-id 16 ; 16 is the topmost ycor BEFORE the queue area
+    if block = 1 [set block-id block-id + 4]
+    if block = 2 [set block-id block-id + 3]
+    if block = 3 [set block-id block-id + 2]
+    if block = 4 [set block-id block-id + 1]
+    let chosen-truck max-one-of (trucks with [waiting = true and ycor = block-id]) [utility-eq-1 myself]
+    if chosen-truck = nobody [stop]
+    ask chosen-truck [
+      set waiting false
+      goto-container
+      stack-slot-check
+      ]
+  ]
+end
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to update-block-occupation
@@ -958,7 +1003,7 @@ truck-arrival
 truck-arrival
 0
 2
-1.0
+2.0
 .1
 1
 trucks/minute
@@ -1357,7 +1402,7 @@ capacity-threshold
 capacity-threshold
 0
 1
-0.1
+0.25
 0.01
 1
 NIL
@@ -1414,8 +1459,8 @@ CHOOSER
 151
 queue-function
 queue-function
-"distance-based" "time-based"
-1
+"crane-based" "distance-based" "time-based"
+0
 
 @#$#@#$#@
 # Container Port Simulation  
