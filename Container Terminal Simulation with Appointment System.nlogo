@@ -13,6 +13,7 @@ breed [cranes crane]
 cranes-own [
   goal ; [#ticks-to-wait "goal-position" group stack] of the goal position for the crane, or ["deliver-containter" container-who], or []
   travel-distance ; monitor distance traveled by crane
+  my-block
 ]
 breed [trucks truck]
 trucks-own [
@@ -94,6 +95,7 @@ to setup
     set color cyan
     set goal []
     set-my-position position-in-yard 0 0 -1
+    define-block
   ]
   create-cranes 1 [
     set shape "arrow"
@@ -101,6 +103,7 @@ to setup
     set color red
     set goal []
     set-my-position position-in-yard 4 41 -1
+    define-block
   ]
 end
 
@@ -227,6 +230,7 @@ to go-crane
     goto-position (item 2 goal) (item 3 goal)
 
     set travel-distance travel-distance + 1 ; travel distance of the crane + 1
+    define-block ; update my-block location
 
     if (not any? trucks-on (patch (item 0 goal-position-xy) (item 1 goal-position-xy - 7))) [ ;if there is no truck at the goal then reset goal
         set goal []
@@ -710,8 +714,8 @@ end
 to define-block ; function to define their block location; block 1= north west, block 2= north east, block 3= south west, block 4= south east
   if (xcor < 41 and ycor > 7) [set my-block 1]
   if (xcor > 41 and ycor > 7) [set my-block 2]
-  if (xcor < 41 and ycor < 7) [set my-block 3]
-  if (xcor > 41 and ycor < 7) [set my-block 4]
+  if (xcor < 41 and ycor <= 7) [set my-block 3]
+  if (xcor > 41 and ycor <= 7) [set my-block 4]
 end
 
 to truck-queue
@@ -763,54 +767,49 @@ to capacity-check
   ]]
 end
 
-;;;;;;;;;;;;;;;;
-;;;;; queue function
-;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;; THE QUEUE FUNCTIONS
+;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;; TIME-BASED-QUEUE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 to queue-time-based ; time-based queue function, the longer truck wait the higher its utility
+  let block-cor 0
   if block-1-occupation < capacity-threshold [
-    let chosen-truck min-one-of (trucks with [waiting = true and pycor = 20]) [my-start-time] ; choose truck with the longest wait time, or first in first out
-    ifelse chosen-truck = nobody [stop][
-    ask chosen-truck [
-      set waiting false
-;      set trucks-from-queue trucks-from-queue + 1 ; only to check if the trucks successfully get in from this function
-      goto-container
-      stack-slot-check
-    ]
-  ]
+    set block-cor 20 ; the ycor of queue for block 1
+    queue-time-based-function block-cor
   ]
   if block-2-occupation < capacity-threshold [
-    let chosen-truck min-one-of (trucks with [waiting = true and pycor = 19]) [my-start-time] ; choose truck with the longest wait time, or first in first out
-    ifelse chosen-truck = nobody [stop][
-    ask chosen-truck [
-      set waiting false
-      goto-container
-      stack-slot-check
-    ]
-  ]
+    set block-cor 19 ; the ycor of queue for block 2
+    queue-time-based-function block-cor
   ]
   if block-3-occupation < capacity-threshold [
-    let chosen-truck min-one-of (trucks with [waiting = true and pycor = 18]) [my-start-time] ; choose truck with the longest wait time, or first in first out
-    ifelse chosen-truck = nobody [stop][
-    ask chosen-truck [
-      set waiting false
-      goto-container
-      stack-slot-check
-    ]
-  ]
+    set block-cor 18 ; the ycor of queue for block 3
+    queue-time-based-function block-cor
   ]
   if block-4-occupation < capacity-threshold [
-    let chosen-truck min-one-of (trucks with [waiting = true and pycor = 17]) [my-start-time] ; choose truck with the longest wait time, or first in first out
-    ifelse chosen-truck = nobody [stop][
-    ask chosen-truck [
-      set waiting false
-      goto-container
-      stack-slot-check
-    ]
-  ]
+    set block-cor 17 ; the ycor of queue for block 1
+    queue-time-based-function block-cor
   ]
 end
 
-to queue-distance-based ; distance-based queue function, the closer the truck the higher its utility
+to queue-time-based-function [block-cor]
+  let chosen-truck min-one-of (trucks with [waiting = true and pycor = block-cor]) [my-start-time] ; choose truck with the longest wait time, or first in first out
+  ifelse chosen-truck = nobody [stop][
+    ask chosen-truck [
+      set waiting false
+      goto-container
+      stack-slot-check
+    ]
+  ]
+end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;; CONTAINER-DISTANCE-BASED-QUEUE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+to queue-distance-based ; distance-based queue function, prioritize container that nearby a container that soon to be picked, if no such container, use time-based queueing instead
   let block 0
   if block-1-occupation < capacity-threshold [
     set block 1
@@ -832,7 +831,9 @@ end
 
 to queue-distance-based-function [block]
   let nearest-target max-one-of (trucks with [my-block = block and waiting != true]) [my-utility] ; choose truck that already have crane assigned
-  if nearest-target = nobody [stop]
+  if nearest-target = nobody [
+    queue-time-based ; if nearest target returns nobody, run queue time-based instead (first in first out)
+    stop]
   let nearest-cargo [cargo] of nearest-target
   ask nearest-cargo [
     let chosen-cargo min-one-of other (containers with [my-block = block and my-truck != nobody and pick-me != true]) [distance myself]
@@ -846,8 +847,9 @@ to queue-distance-based-function [block]
       ]
     ]
   ]
-
 end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to update-block-occupation
   let block-capacity 40
@@ -865,7 +867,7 @@ to stack-slot-check ; check if there is already truck in the destination
 ;;;;;;;
       set waiting true
       set my-block 0 ; set my block to 0 if the truck is outside the terminal
-      set color red ; color yellow to indicate its stack is occupied
+      set color red ; color red to indicate its stack is occupied
     ]
 end
 @#$#@#$#@
@@ -956,7 +958,7 @@ truck-arrival
 truck-arrival
 0
 2
-2.0
+1.0
 .1
 1
 trucks/minute
@@ -1355,7 +1357,7 @@ capacity-threshold
 capacity-threshold
 0
 1
-0.25
+0.1
 0.01
 1
 NIL
@@ -1366,8 +1368,8 @@ MONITOR
 251
 1180
 296
-NIL
-block-1-occupation
+block 1 capacity
+block-1-occupation / capacity-threshold
 17
 1
 11
@@ -1377,8 +1379,8 @@ MONITOR
 250
 1298
 295
-NIL
-block-2-occupation
+block 2 capacity
+block-2-occupation / capacity-threshold
 17
 1
 11
@@ -1388,8 +1390,8 @@ MONITOR
 301
 1180
 346
-NIL
-block-3-occupation
+block 3 capacity
+block-3-occupation / capacity-threshold
 17
 1
 11
@@ -1399,8 +1401,8 @@ MONITOR
 300
 1300
 345
-NIL
-block-4-occupation
+block 4 capacity
+block-4-occupation / capacity-threshold
 17
 1
 11
@@ -1413,7 +1415,7 @@ CHOOSER
 queue-function
 queue-function
 "distance-based" "time-based"
-0
+1
 
 @#$#@#$#@
 # Container Port Simulation  
