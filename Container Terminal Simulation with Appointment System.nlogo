@@ -28,6 +28,8 @@ trucks-own [
   on-service ; truck is on service True/False
   service-time ; starting ticks when truck is being serviced
   my-block
+  my-terminal-time ; starting ticks when truck is inside terminal
+  my-queue-time ; total time trucks outside terminal queueing
 ]
 
 ;ticks: each tick is one second
@@ -50,6 +52,8 @@ globals [
   block-3-occupation
   block-4-occupation
   trucks-from-queue
+  total-terminal-time
+  total-queue-time
 ]
 
 to setup
@@ -275,6 +279,8 @@ to deliver-container [the-container]
       set total-wait-time total-wait-time + (ticks - my-start-time)
       set idle-time idle-time - current-idle ; update the idling time by reducing value of serviced trucks
       set total-service-time total-service-time + (ticks - service-time) ; update service time
+      set total-terminal-time total-terminal-time + (ticks - my-terminal-time) ; update terminal time
+      set total-queue-time total-queue-time + my-queue-time ; update queue time
       die]
 
     set goal []
@@ -591,6 +597,8 @@ to goto-container
   set ycor (ycor - (6 - [my-row] of cargo))
   set label my-start-time
   ask cargo [set pick-me true]
+  set my-terminal-time ticks
+  set my-queue-time my-terminal-time - my-start-time
   define-block
 end
 
@@ -647,27 +655,27 @@ end
 to do-plots
   set-current-plot "Number of Trucks"
   plot count trucks
+
   set-current-plot "Number of Trucks Serviced"
   plot num-trucks-serviced
+
   set-current-plot "Average Wait Time"
   plot plot-wait
+
   set-current-plot "Average Idling Time"
   plot plot-idle
+
   set-current-plot "Wait Time Analysis"
-  if num-trucks-serviced > 1 [
-    set-current-plot-pen "Reshuffle Time"
-    plot total-reshuffle-time / total-wait-time
-    set-current-plot-pen "Service Time"
-    ifelse total-service-time > total-reshuffle-time [
-    plot (total-service-time - total-reshuffle-time) / total-wait-time ; service-time include reshuffle time, so it is deducted to gain service time WITHOUT reshuffle time
-    ][plot 0]
-    set-current-plot-pen "Remainder Time"
-    ifelse total-wait-time > total-service-time [
-    plot (total-wait-time - total-service-time) / total-wait-time ; get remainder time: wait time outside service time
-    ][plot 0]
+  ifelse plot-wait = 0 [plot 0][
+  set-current-plot-pen "Queue Time"
+  plot plot-queue-time / plot-wait
+  set-current-plot-pen "In-Terminal Time"
+  plot plot-terminal-time / plot-wait
   ]
+
   set-current-plot "Crane Utility" ; total distance traveled for each trucks serviced
   plot plot-crane
+
 end
 
 to update-idling-time
@@ -695,6 +703,28 @@ to-report plot-idle
   ][
     report zero
   ]
+end
+
+to-report plot-terminal-time
+  let zero 0
+  ifelse num-trucks-serviced > 0 [
+    report total-terminal-time / num-trucks-serviced
+  ][
+    report zero
+  ]
+end
+
+to-report plot-queue-time
+  let zero 0
+  ifelse num-trucks-serviced > 0 [
+    report total-queue-time / num-trucks-serviced
+  ][
+    report zero
+  ]
+end
+
+to-report queue-length
+  report count trucks with [waiting = true]
 end
 
 to-report plot-crane
@@ -881,7 +911,7 @@ to queue-crane-based ; queue crane based, prioritize truck in queue that have hi
 end
 
 to queue-crane-based-function [block]
-  let the-crane cranes with [my-block = block]
+  let the-crane one-of cranes with [my-block = block]
   if the-crane = nobody [
     queue-time-based-function block ; if nearest target returns nobody, run queue time-based instead (first in first out)
     stop]
@@ -924,13 +954,13 @@ to stack-slot-check ; check if there is already truck in the destination
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-8
-166
-1057
-438
+5
+10
+935
+252
 -1
 -1
-12.5422
+11.11
 1
 10
 1
@@ -951,10 +981,10 @@ ticks
 30.0
 
 BUTTON
-19
-12
-90
-45
+947
+11
+1018
+44
 NIL
 setup
 NIL
@@ -968,10 +998,10 @@ NIL
 1
 
 BUTTON
-21
-101
-89
-134
+950
+122
+1018
+155
 NIL
 go
 T
@@ -985,10 +1015,10 @@ NIL
 1
 
 BUTTON
-21
-55
-90
-88
+949
+67
+1018
+100
 NIL
 go
 NIL
@@ -1002,25 +1032,25 @@ NIL
 1
 
 SLIDER
-269
-68
-461
-101
+1027
+10
+1195
+43
 truck-arrival
 truck-arrival
 0
-2
-1.0
+3
+2.0
 .1
 1
 trucks/minute
 HORIZONTAL
 
 PLOT
-10
-449
-195
-599
+4
+583
+189
+733
 Number of Trucks
 NIL
 NIL
@@ -1037,10 +1067,10 @@ PENS
 "waiting" 1.0 0 -13345367 true "" "plot count trucks with [waiting = true]"
 
 PLOT
-204
-450
-383
-600
+198
+584
+377
+734
 Number of Trucks Serviced
 NIL
 NIL
@@ -1055,10 +1085,10 @@ PENS
 "default" 1.0 0 -955883 true "" ""
 
 PLOT
-388
-614
-579
-764
+382
+748
+573
+898
 Average Wait Time
 Tick
 Avg. Wait Time (ticks)
@@ -1073,10 +1103,10 @@ PENS
 "default" 1.0 0 -16777216 true "" ""
 
 SWITCH
-103
-17
-258
-50
+1214
+10
+1369
+43
 show-start-time?
 show-start-time?
 0
@@ -1084,20 +1114,20 @@ show-start-time?
 -1000
 
 CHOOSER
-267
-12
-461
-57
+1028
+123
+1196
+168
 crane-pick-goal-function
 crane-pick-goal-function
 "random" "longest" "closest" "closest-longest" "eq-1" "eq-2" "eq-1-coordinated" "eq-2-coordinated"
 4
 
 SWITCH
-102
-57
-258
-90
+1213
+68
+1369
+101
 opportunistic?
 opportunistic?
 0
@@ -1105,10 +1135,10 @@ opportunistic?
 -1000
 
 SWITCH
-101
-97
-258
+1215
 130
+1372
+163
 semi-committed?
 semi-committed?
 1
@@ -1116,32 +1146,21 @@ semi-committed?
 -1000
 
 MONITOR
-475
-13
-603
-58
-Trucks on Service
-count trucks with [on-service = true]
+5
+359
+130
+404
+NIL
+queue-length
 17
 1
 11
 
 MONITOR
-475
-58
-604
-103
-Trucks Waiting at Gate
-count trucks with [waiting = true]
-17
-1
-11
-
-MONITOR
-790
-54
-932
-99
+290
+258
+408
+303
 NIL
 total-wait-time
 17
@@ -1149,43 +1168,43 @@ total-wait-time
 11
 
 MONITOR
-791
-103
-933
-148
-Average Wait Time
-total-wait-time / num-trucks-serviced
+291
+307
+409
+352
+NIL
+plot-wait
 17
 1
 11
 
 MONITOR
-475
-103
-605
-148
-Current Total Trucks
+6
+308
+131
+353
+NIL
 count trucks
 17
 1
 11
 
 MONITOR
-612
-57
-781
-102
-Total Current Wait Time
+138
+258
+281
+303
+NIL
 idle-time
 17
 1
 11
 
 PLOT
-590
-613
-774
-763
+584
+747
+768
+897
 Average Idling Time
 NIL
 NIL
@@ -1200,43 +1219,43 @@ PENS
 "default" 1.0 0 -16777216 true "" ""
 
 MONITOR
-612
-11
-780
-56
-Trucks Waiting at Stack (Idling)
+138
+358
+283
+403
+NIL
 num-trucks-idling
 17
 1
 11
 
 MONITOR
-613
-104
-781
-149
-Current Avg. Wait Time
+139
+305
+283
+350
+NIL
 idle-time / num-trucks-idling
 17
 1
 11
 
 MONITOR
-789
-10
-933
-55
-Total Trucks Serviced
+6
+254
+125
+299
+NIL
 num-trucks-serviced
 17
 1
 11
 
 BUTTON
-1230
-55
-1366
-88
+1222
+352
+1358
+385
 NIL
 inspect crane 1000
 NIL
@@ -1250,10 +1269,10 @@ NIL
 1
 
 BUTTON
-1232
-112
-1368
-145
+1224
+409
+1360
+442
 NIL
 inspect crane 1001
 NIL
@@ -1267,10 +1286,10 @@ NIL
 1
 
 MONITOR
-939
-10
-1079
-55
+1191
+750
+1331
+795
 NIL
 total-reshuffle
 17
@@ -1278,10 +1297,10 @@ total-reshuffle
 11
 
 MONITOR
-938
-54
-1079
-99
+1190
+794
+1331
+839
 NIL
 total-reshuffle-time
 17
@@ -1289,10 +1308,10 @@ total-reshuffle-time
 11
 
 MONITOR
-938
-100
-1080
-145
+1190
+840
+1332
+885
 Reshuffle / Wait Time (%)
 total-reshuffle-time / total-wait-time * 100
 2
@@ -1300,10 +1319,10 @@ total-reshuffle-time / total-wait-time * 100
 11
 
 PLOT
-389
-449
-772
-599
+383
+583
+766
+733
 Wait Time vs Idling
 ticks
 NIL
@@ -1319,10 +1338,10 @@ PENS
 "Idle Time" 1.0 0 -13345367 true "" "ifelse num-trucks-idling > 0 [plot idle-time / num-trucks-idling] [plot 0]"
 
 MONITOR
-1082
-53
-1213
-98
+1283
+586
+1414
+631
 NIL
 total-service-time
 17
@@ -1330,10 +1349,10 @@ total-service-time
 11
 
 MONITOR
-1082
-99
-1212
-144
+1283
+632
+1413
+677
 Service / Wait Time (%)
 (total-service-time) / total-wait-time * 100
 2
@@ -1341,10 +1360,10 @@ Service / Wait Time (%)
 11
 
 PLOT
-790
-449
-1189
-598
+785
+582
+1056
+731
 Wait Time Analysis
 NIL
 NIL
@@ -1356,15 +1375,14 @@ true
 true
 "" ""
 PENS
-"Reshuffle Time" 1.0 0 -10899396 true "" ""
-"Service Time" 1.0 0 -2674135 true "" ""
-"Remainder Time" 1.0 0 -13345367 true "" ""
+"Queue Time" 1.0 0 -2674135 true "" ""
+"In-Terminal Time" 1.0 0 -13345367 true "" ""
 
 MONITOR
-1012
-616
-1118
-661
+1006
+750
+1112
+795
 Total Emission
 crane-movement
 17
@@ -1372,10 +1390,10 @@ crane-movement
 11
 
 PLOT
-793
-613
-993
-763
+787
+747
+987
+897
 Crane Utility
 NIL
 NIL
@@ -1390,10 +1408,10 @@ PENS
 "default" 1.0 0 -13345367 true "" ""
 
 MONITOR
-1012
-672
-1118
-717
+1006
+806
+1112
+851
 NIL
 plot-crane
 17
@@ -1401,25 +1419,25 @@ plot-crane
 11
 
 SLIDER
-1090
-10
-1262
-43
+1028
+63
+1195
+96
 capacity-threshold
 capacity-threshold
 0
 1
-0.1
+0.25
 0.01
 1
 NIL
 HORIZONTAL
 
 MONITOR
-1063
-251
-1180
-296
+695
+258
+812
+303
 block 1 capacity
 block-1-occupation / capacity-threshold
 17
@@ -1427,10 +1445,10 @@ block-1-occupation / capacity-threshold
 11
 
 MONITOR
-1181
-250
-1298
-295
+813
+257
+930
+302
 block 2 capacity
 block-2-occupation / capacity-threshold
 17
@@ -1438,10 +1456,10 @@ block-2-occupation / capacity-threshold
 11
 
 MONITOR
-1063
-301
-1180
-346
+695
+308
+812
+353
 block 3 capacity
 block-3-occupation / capacity-threshold
 17
@@ -1449,10 +1467,10 @@ block-3-occupation / capacity-threshold
 11
 
 MONITOR
-1183
-300
-1300
-345
+815
+307
+932
+352
 block 4 capacity
 block-4-occupation / capacity-threshold
 17
@@ -1460,14 +1478,94 @@ block-4-occupation / capacity-threshold
 11
 
 CHOOSER
-268
-106
-406
-151
+1028
+190
+1193
+235
 queue-function
 queue-function
 "crane-based" "distance-based" "time-based"
 0
+
+MONITOR
+418
+306
+527
+351
+NIL
+plot-terminal-time
+17
+1
+11
+
+PLOT
+166
+744
+366
+894
+In-Terminal Time
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot plot-terminal-time"
+
+MONITOR
+537
+307
+656
+352
+NIL
+plot-queue-time
+17
+1
+11
+
+PLOT
+1063
+584
+1263
+734
+Queue Length
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot queue-length"
+
+MONITOR
+415
+256
+529
+301
+NIL
+total-terminal-time
+17
+1
+11
+
+MONITOR
+537
+257
+655
+302
+NIL
+total-queue-time
+17
+1
+11
 
 @#$#@#$#@
 # Container Port Simulation  
