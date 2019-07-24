@@ -116,6 +116,7 @@ to go
 ; queue function
   if (queue-function = "time-based") [queue-time-based]
   if (queue-function = "distance-based") [queue-distance-based]
+  if (queue-function = "crane-based") [queue-crane-based]
 
   create-trucks (random-poisson trucks-per-tick) [ ;Poisson arrival rate
     set shape "truck"
@@ -467,7 +468,8 @@ to-report make-path [xstart ystart xend yend]
     report result
   ]
   ;both x & y coords are different
-  show (word "ERROR: make-path:" xstart "," ystart "  " xend "," yend)
+  ;disabled, it may not affect simulation (need to be checked)
+;  show (word "ERROR: make-path:" xstart "," ystart "  " xend "," yend)
   report []
 end
 
@@ -726,6 +728,11 @@ to truck-queue
   if my-block = 3 [set y 18]
   if my-block = 4 [set y 17]
   let x count turtles-on patches with [pycor = y]  ; define xcor for the queue
+  ifelse x >= max-pxcor [ ; prevent queue to exceed max pxcor amount
+    set x max-pxcor
+    setxy x y
+    set label x]
+  [
   setxy x y
   set label x
   if (any? other trucks-here) [ ; if any trucks here, find the leftmost empty position
@@ -737,6 +744,7 @@ to truck-queue
         stop]
       set x x + 1
     ]
+  ]
   ]
 end
 
@@ -832,7 +840,7 @@ end
 to queue-distance-based-function [block]
   let nearest-target max-one-of (trucks with [my-block = block and waiting != true]) [my-utility] ; choose truck that already have crane assigned
   if nearest-target = nobody [
-    queue-time-based ; if nearest target returns nobody, run queue time-based instead (first in first out)
+    queue-time-based-function block ; if nearest target returns nobody, run queue time-based instead (first in first out)
     stop]
   let nearest-cargo [cargo] of nearest-target
   ask nearest-cargo [
@@ -840,12 +848,56 @@ to queue-distance-based-function [block]
     if chosen-cargo = nobody [stop]
     ask chosen-cargo [
       ask my-truck [
-        if waiting = true [stop] ; if the chosen truck is already there
+        if waiting = false [stop] ; if the chosen truck is already there
         set waiting false
         goto-container
         stack-slot-check
       ]
     ]
+  ]
+end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;; CRANE-DISTANCE-BASED-QUEUE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+to queue-crane-based ; queue crane based, prioritize truck in queue that have highest utility based on the crane's distance-based function
+  let block 0
+  if block-1-occupation < capacity-threshold [
+    set block 1
+    queue-crane-based-function block
+  ]
+  if block-2-occupation < capacity-threshold [
+    set block 2
+    queue-crane-based-function block
+  ]
+  if block-3-occupation < capacity-threshold [
+    set block 3
+    queue-crane-based-function block
+  ]
+  if block-4-occupation < capacity-threshold [
+    set block 4
+    queue-crane-based-function block
+  ]
+end
+
+to queue-crane-based-function [block]
+  let the-crane cranes with [my-block = block]
+  if the-crane = nobody [
+    queue-time-based-function block ; if nearest target returns nobody, run queue time-based instead (first in first out)
+    stop]
+  ask the-crane [
+    let block-id 16 ; 16 is the topmost ycor BEFORE the queue area
+    if block = 1 [set block-id block-id + 4]
+    if block = 2 [set block-id block-id + 3]
+    if block = 3 [set block-id block-id + 2]
+    if block = 4 [set block-id block-id + 1]
+    let chosen-truck max-one-of (trucks with [waiting = true and ycor = block-id]) [utility-eq-1 myself]
+    if chosen-truck = nobody [stop]
+    ask chosen-truck [
+      set waiting false
+      goto-container
+      stack-slot-check
+      ]
   ]
 end
 
@@ -965,10 +1017,10 @@ trucks/minute
 HORIZONTAL
 
 PLOT
-7
-498
-192
-648
+10
+449
+195
+599
 Number of Trucks
 NIL
 NIL
@@ -985,10 +1037,10 @@ PENS
 "waiting" 1.0 0 -13345367 true "" "plot count trucks with [waiting = true]"
 
 PLOT
-201
-499
-380
-649
+204
+450
+383
+600
 Number of Trucks Serviced
 NIL
 NIL
@@ -1003,10 +1055,10 @@ PENS
 "default" 1.0 0 -955883 true "" ""
 
 PLOT
-385
-663
-576
-813
+388
+614
+579
+764
 Average Wait Time
 Tick
 Avg. Wait Time (ticks)
@@ -1039,7 +1091,7 @@ CHOOSER
 crane-pick-goal-function
 crane-pick-goal-function
 "random" "longest" "closest" "closest-longest" "eq-1" "eq-2" "eq-1-coordinated" "eq-2-coordinated"
-6
+4
 
 SWITCH
 102
@@ -1059,7 +1111,7 @@ SWITCH
 130
 semi-committed?
 semi-committed?
-0
+1
 1
 -1000
 
@@ -1130,10 +1182,10 @@ idle-time
 11
 
 PLOT
-587
-662
-771
-812
+590
+613
+774
+763
 Average Idling Time
 NIL
 NIL
@@ -1248,10 +1300,10 @@ total-reshuffle-time / total-wait-time * 100
 11
 
 PLOT
-386
-498
-769
-648
+389
+449
+772
+599
 Wait Time vs Idling
 ticks
 NIL
@@ -1289,10 +1341,10 @@ Service / Wait Time (%)
 11
 
 PLOT
-787
-498
-1186
-647
+790
+449
+1189
+598
 Wait Time Analysis
 NIL
 NIL
@@ -1309,10 +1361,10 @@ PENS
 "Remainder Time" 1.0 0 -13345367 true "" ""
 
 MONITOR
-1009
-665
-1115
-710
+1012
+616
+1118
+661
 Total Emission
 crane-movement
 17
@@ -1320,10 +1372,10 @@ crane-movement
 11
 
 PLOT
-790
-662
-990
-812
+793
+613
+993
+763
 Crane Utility
 NIL
 NIL
@@ -1338,10 +1390,10 @@ PENS
 "default" 1.0 0 -13345367 true "" ""
 
 MONITOR
-1009
-721
-1115
-766
+1012
+672
+1118
+717
 NIL
 plot-crane
 17
@@ -1414,8 +1466,8 @@ CHOOSER
 151
 queue-function
 queue-function
-"distance-based" "time-based"
-1
+"crane-based" "distance-based" "time-based"
+0
 
 @#$#@#$#@
 # Container Port Simulation  
