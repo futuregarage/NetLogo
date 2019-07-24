@@ -54,6 +54,11 @@ globals [
   trucks-from-queue
   total-terminal-time
   total-queue-time
+  postponed-request
+  block-1-cargo
+  block-2-cargo
+  block-3-cargo
+  block-4-cargo
 ]
 
 to setup
@@ -85,7 +90,7 @@ to setup
   create-containers 1000 [
     set z-cor 0
     set shape "square"
-    set color blue
+    set color black
     set size .6
     set my-truck nobody
     set my-crane nobody
@@ -104,7 +109,7 @@ to setup
   create-cranes 1 [
     set shape "arrow"
     set heading 0
-    set color red
+    set color 26
     set goal []
     set-my-position position-in-yard 4 41 -1
     define-block
@@ -117,14 +122,18 @@ to go
 
 ; block occupation update
   update-block-occupation
+  update-block-cargo
+
 ; queue function
-  if (queue-function = "time-based") [queue-time-based]
-  if (queue-function = "distance-based") [queue-distance-based]
-  if (queue-function = "crane-based") [queue-crane-based]
+  if queue-system? [
+    if (queue-function = "time-based") [queue-time-based]
+    if (queue-function = "distance-based") [queue-distance-based]
+    if (queue-function = "crane-based") [queue-crane-based]
+  ]
 
   create-trucks (random-poisson trucks-per-tick) [ ;Poisson arrival rate
     set shape "truck"
-    set color pink
+    set color blue
     set waiting false
     set my-start-time ticks
     set my-crane nobody ; no crane booked this truck yet
@@ -132,6 +141,11 @@ to go
     set on-service false ; set on-service false at first
     set cargo one-of containers with [my-truck = nobody]
     if (cargo = nobody) [die stop] ;all stacks are full!!
+
+    ;;;;;;
+    appointment-platform ; new appointment platform
+    ;;;;;;
+
     ask cargo [
 ;      set color one-of (list red blue orange green)
       set color red
@@ -146,7 +160,9 @@ to go
     [ set label "" ]     ;; the label is set to an empty text value
 
 ;;;; new capacity check function
+    if capacity-system? [
     capacity-check ; check the capacity for each blocks
+    ]
     stack-slot-check ; check if there is already truck in the destination
 ;;;;
 
@@ -380,7 +396,7 @@ to-report pick-goal-position-eq-1-commited [current-goal]
   if (current-truck = nobody) [
     report [group-stack] of chosen-truck]
   let utility-of-current-truck [utility-eq-1 myself] of current-truck
-  ask current-truck [set color pink]
+  ask current-truck [set color blue]
   ifelse (utility-of-chosen-truck > utility-of-current-truck + decommitment-penalty) [ ;is the new goal that much better than the current?
     ask chosen-truck [set color yellow]
     report [group-stack] of chosen-truck
@@ -941,6 +957,13 @@ to update-block-occupation
   set block-4-occupation count trucks with [my-block = 4] / block-capacity
 end
 
+to update-block-cargo
+  set block-1-cargo count containers with [my-block = 1 and my-truck != nobody] / count containers with [my-block = 1]
+  set block-2-cargo count containers with [my-block = 2 and my-truck != nobody] / count containers with [my-block = 2]
+  set block-3-cargo count containers with [my-block = 3 and my-truck != nobody] / count containers with [my-block = 3]
+  set block-4-cargo count containers with [my-block = 4 and my-truck != nobody] / count containers with [my-block = 4]
+end
+
 to stack-slot-check ; check if there is already truck in the destination
     if (any? other trucks-here) [ ;someone is already here, go to the waiting spot
 ;     setxy 0 16 ; default truck waiting location outside the terminal
@@ -951,6 +974,26 @@ to stack-slot-check ; check if there is already truck in the destination
       set my-block 0 ; set my block to 0 if the truck is outside the terminal
       set color red ; color red to indicate its stack is occupied
     ]
+end
+
+;;;;;;;;;
+
+to appointment-platform
+  if platform-sync > random-float 1.0 [ ; check the platform sync rate, probability of how much the trucks "obey" the appointment rule
+    ifelse queue-length >= queue-threshold [ ; if the length >= queue threshold, reject the request and save it in postponed-request variable
+      set postponed-request postponed-request + 1
+      die
+    ][
+      ; in this appointment system, only pick up request in the less crowded block will be accepted
+      ; on technical note: if the queue check is passed, the cargo requested will be in the most relaxed block
+      let compare-list (list block-1-cargo block-2-cargo block-3-cargo block-4-cargo) ; make lists of the container's block occupancy
+      let lowest min compare-list ; get the lowest value
+      let n-item position lowest compare-list ; get its position in the list to id the block
+      let relaxed-block n-item + 1 ; id the block
+      set cargo one-of containers with [my-truck = nobody and my-block = relaxed-block] ; set new cargo
+    ]
+  ]
+
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -998,10 +1041,10 @@ NIL
 1
 
 BUTTON
-950
-122
-1018
-155
+949
+80
+1017
+113
 NIL
 go
 T
@@ -1015,10 +1058,10 @@ NIL
 1
 
 BUTTON
-949
-67
-1018
-100
+948
+45
+1017
+78
 NIL
 go
 NIL
@@ -1032,9 +1075,9 @@ NIL
 1
 
 SLIDER
-1027
+1028
 10
-1195
+1189
 43
 truck-arrival
 truck-arrival
@@ -1043,14 +1086,14 @@ truck-arrival
 2.0
 .1
 1
-trucks/minute
+trucks/min
 HORIZONTAL
 
 PLOT
-4
-583
-189
-733
+8
+1019
+193
+1169
 Number of Trucks
 NIL
 NIL
@@ -1067,10 +1110,10 @@ PENS
 "waiting" 1.0 0 -13345367 true "" "plot count trucks with [waiting = true]"
 
 PLOT
-198
-584
-377
-734
+478
+451
+678
+601
 Number of Trucks Serviced
 NIL
 NIL
@@ -1085,10 +1128,10 @@ PENS
 "default" 1.0 0 -955883 true "" ""
 
 PLOT
-382
-748
-573
-898
+196
+857
+376
+1007
 Average Wait Time
 Tick
 Avg. Wait Time (ticks)
@@ -1109,25 +1152,25 @@ SWITCH
 43
 show-start-time?
 show-start-time?
-0
+1
 1
 -1000
 
 CHOOSER
-1028
-123
-1196
-168
+1029
+45
+1189
+90
 crane-pick-goal-function
 crane-pick-goal-function
 "random" "longest" "closest" "closest-longest" "eq-1" "eq-2" "eq-1-coordinated" "eq-2-coordinated"
 4
 
 SWITCH
-1213
-68
-1369
-101
+1214
+44
+1370
+77
 opportunistic?
 opportunistic?
 0
@@ -1135,21 +1178,21 @@ opportunistic?
 -1000
 
 SWITCH
-1215
-130
-1372
-163
+1213
+78
+1370
+111
 semi-committed?
 semi-committed?
-1
+0
 1
 -1000
 
 MONITOR
 5
-359
-130
-404
+352
+125
+397
 NIL
 queue-length
 17
@@ -1157,10 +1200,10 @@ queue-length
 11
 
 MONITOR
-290
-258
-408
-303
+272
+255
+390
+300
 NIL
 total-wait-time
 17
@@ -1168,10 +1211,10 @@ total-wait-time
 11
 
 MONITOR
-291
-307
-409
-352
+273
+302
+391
+347
 NIL
 plot-wait
 17
@@ -1180,9 +1223,9 @@ plot-wait
 
 MONITOR
 6
-308
-131
-353
+301
+125
+346
 NIL
 count trucks
 17
@@ -1190,10 +1233,10 @@ count trucks
 11
 
 MONITOR
-138
-258
-281
-303
+127
+255
+270
+300
 NIL
 idle-time
 17
@@ -1201,10 +1244,10 @@ idle-time
 11
 
 PLOT
-584
-747
-768
-897
+380
+857
+564
+1007
 Average Idling Time
 NIL
 NIL
@@ -1219,10 +1262,10 @@ PENS
 "default" 1.0 0 -16777216 true "" ""
 
 MONITOR
-138
-358
-283
-403
+127
+351
+272
+396
 NIL
 num-trucks-idling
 17
@@ -1230,10 +1273,10 @@ num-trucks-idling
 11
 
 MONITOR
-139
-305
-283
-350
+128
+302
+272
+347
 NIL
 idle-time / num-trucks-idling
 17
@@ -1252,10 +1295,10 @@ num-trucks-serviced
 11
 
 BUTTON
-1222
-352
-1358
-385
+606
+1075
+742
+1108
 NIL
 inspect crane 1000
 NIL
@@ -1269,10 +1312,10 @@ NIL
 1
 
 BUTTON
-1224
-409
-1360
-442
+608
+1132
+744
+1165
 NIL
 inspect crane 1001
 NIL
@@ -1286,10 +1329,10 @@ NIL
 1
 
 MONITOR
-1191
-750
-1331
-795
+320
+1031
+460
+1076
 NIL
 total-reshuffle
 17
@@ -1297,10 +1340,10 @@ total-reshuffle
 11
 
 MONITOR
-1190
-794
-1331
-839
+319
+1075
+460
+1120
 NIL
 total-reshuffle-time
 17
@@ -1308,10 +1351,10 @@ total-reshuffle-time
 11
 
 MONITOR
-1190
-840
-1332
-885
+319
+1121
+461
+1166
 Reshuffle / Wait Time (%)
 total-reshuffle-time / total-wait-time * 100
 2
@@ -1319,10 +1362,10 @@ total-reshuffle-time / total-wait-time * 100
 11
 
 PLOT
-383
-583
-766
-733
+5
+605
+275
+755
 Wait Time vs Idling
 ticks
 NIL
@@ -1338,10 +1381,10 @@ PENS
 "Idle Time" 1.0 0 -13345367 true "" "ifelse num-trucks-idling > 0 [plot idle-time / num-trucks-idling] [plot 0]"
 
 MONITOR
-1283
-586
-1414
-631
+467
+1074
+598
+1119
 NIL
 total-service-time
 17
@@ -1349,10 +1392,10 @@ total-service-time
 11
 
 MONITOR
-1283
-632
-1413
-677
+467
+1120
+597
+1165
 Service / Wait Time (%)
 (total-service-time) / total-wait-time * 100
 2
@@ -1360,10 +1403,10 @@ Service / Wait Time (%)
 11
 
 PLOT
-785
-582
-1056
-731
+4
+450
+275
+599
 Wait Time Analysis
 NIL
 NIL
@@ -1379,10 +1422,10 @@ PENS
 "In-Terminal Time" 1.0 0 -13345367 true "" ""
 
 MONITOR
-1006
-750
-1112
-795
+203
+1064
+309
+1109
 Total Emission
 crane-movement
 17
@@ -1390,10 +1433,10 @@ crane-movement
 11
 
 PLOT
-787
-747
-987
-897
+565
+856
+765
+1006
 Crane Utility
 NIL
 NIL
@@ -1408,10 +1451,10 @@ PENS
 "default" 1.0 0 -13345367 true "" ""
 
 MONITOR
-1006
-806
-1112
-851
+203
+1120
+309
+1165
 NIL
 plot-crane
 17
@@ -1420,9 +1463,9 @@ plot-crane
 
 SLIDER
 1028
-63
-1195
-96
+249
+1185
+282
 capacity-threshold
 capacity-threshold
 0
@@ -1434,10 +1477,10 @@ NIL
 HORIZONTAL
 
 MONITOR
-695
-258
-812
-303
+699
+255
+816
+300
 block 1 capacity
 block-1-occupation / capacity-threshold
 17
@@ -1445,10 +1488,10 @@ block-1-occupation / capacity-threshold
 11
 
 MONITOR
-813
-257
-930
-302
+817
+254
+934
+299
 block 2 capacity
 block-2-occupation / capacity-threshold
 17
@@ -1456,10 +1499,10 @@ block-2-occupation / capacity-threshold
 11
 
 MONITOR
-695
-308
-812
-353
+699
+302
+816
+347
 block 3 capacity
 block-3-occupation / capacity-threshold
 17
@@ -1467,10 +1510,10 @@ block-3-occupation / capacity-threshold
 11
 
 MONITOR
-815
-307
-932
-352
+819
+301
+934
+346
 block 4 capacity
 block-4-occupation / capacity-threshold
 17
@@ -1478,20 +1521,20 @@ block-4-occupation / capacity-threshold
 11
 
 CHOOSER
-1028
-190
-1193
-235
+1029
+157
+1185
+202
 queue-function
 queue-function
 "crane-based" "distance-based" "time-based"
 0
 
 MONITOR
-418
-306
-527
-351
+393
+304
+502
+349
 NIL
 plot-terminal-time
 17
@@ -1499,10 +1542,10 @@ plot-terminal-time
 11
 
 PLOT
-166
-744
-366
-894
+8
+857
+194
+1007
 In-Terminal Time
 NIL
 NIL
@@ -1517,10 +1560,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot plot-terminal-time"
 
 MONITOR
-537
-307
-656
-352
+504
+305
+623
+350
 NIL
 plot-queue-time
 17
@@ -1528,10 +1571,10 @@ plot-queue-time
 11
 
 PLOT
-1063
-584
-1263
-734
+277
+450
+477
+600
 Queue Length
 NIL
 NIL
@@ -1546,9 +1589,9 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot queue-length"
 
 MONITOR
-415
+390
 256
-529
+504
 301
 NIL
 total-terminal-time
@@ -1557,15 +1600,122 @@ total-terminal-time
 11
 
 MONITOR
-537
+504
 257
-655
+622
 302
 NIL
 total-queue-time
 17
 1
 11
+
+SLIDER
+1030
+301
+1187
+334
+platform-sync
+platform-sync
+0
+1
+0.5
+0.1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+1029
+335
+1187
+368
+queue-threshold
+queue-threshold
+0
+200
+20.0
+1
+1
+NIL
+HORIZONTAL
+
+MONITOR
+1031
+370
+1186
+415
+NIL
+postponed-request
+17
+1
+11
+
+MONITOR
+700
+346
+814
+391
+NIL
+block-1-cargo
+17
+1
+11
+
+MONITOR
+819
+346
+933
+391
+NIL
+block-2-cargo
+17
+1
+11
+
+MONITOR
+699
+395
+814
+440
+NIL
+block-3-cargo
+17
+1
+11
+
+MONITOR
+820
+394
+932
+439
+NIL
+block-4-cargo
+17
+1
+11
+
+SWITCH
+1030
+122
+1187
+155
+queue-system?
+queue-system?
+0
+1
+-1000
+
+SWITCH
+1029
+216
+1186
+249
+capacity-system?
+capacity-system?
+0
+1
+-1000
 
 @#$#@#$#@
 # Container Port Simulation  
