@@ -14,13 +14,18 @@ epsilon; higher value leads to explore more often
   avg-wait-time
   crane-deficit
 
+  bcap-1
+  bcap-2
+  bcap-3
+  bcap-4
+
 ]
 
 extensions [ table ]
 
 breed [trucks truck]
 
-trucks-own [block inside?]
+trucks-own [block inside? appointment?]
 
 to setup
   clear-all
@@ -35,14 +40,19 @@ end
 
 to go
   initiate ; create trucks for current run
-  to-move ; simulate the pick up process
+  ifelse auto-cap? = true [
+    auto-block-cap ; run with automatic block cap
+  ][
+    to-move ; simulate the pick up process
+  ]
   setup-plot ; run the plots needed
   print-error ; for debug purpose
   tick
 end
 
 to go-manual
-  to-move
+  to-move ; run with static / manual block cap
+;  auto-block-cap ; run with automatic block cap
   setup-plot
   print-error
   tick
@@ -58,12 +68,21 @@ to initiate
     set no-show-rate max-no-shows
     set walk-ins max-walk-ins
   ]
-  let n-total n-of-trucks - ( n-of-trucks * no-show-rate ) + walk-ins ; calculate n-total
-  let net-n round min list n-total max-truck ; prevent n exceeding max-truck and must be rounded
-  create-trucks net-n [
+  let n-total round n-of-trucks - ( n-of-trucks * no-show-rate )
+  let truck-allowed max-truck - n-of-trucks
+  let n-walk-ins round min list walk-ins truck-allowed ; prevent n exceeding max-truck and must be rounded
+  create-trucks n-total [ ; create trucks with appointment beforehand minus no-shows
     set shape "truck"
     set color green
     set inside? false
+    set appointment? true
+    find-empty-position
+  ]
+  create-trucks n-walk-ins [ ; create trucks walk ins
+    set shape "truck"
+    set color yellow
+    set inside? false
+    set appointment? false
     find-empty-position
   ]
 end
@@ -91,10 +110,10 @@ to move-inside [the-block]
   let y (the-block - 1 )
   let cap 0
   let truck-count count trucks with [block = the-block and inside? = false]
-  if the-block = 1 [set cap block-1-cap]
-  if the-block = 2 [set cap block-2-cap]
-  if the-block = 3 [set cap block-3-cap]
-  if the-block = 4 [set cap block-4-cap]
+  if the-block = 1 [set cap block-1-cap set bcap-1 cap]
+  if the-block = 2 [set cap block-2-cap set bcap-2 cap]
+  if the-block = 3 [set cap block-3-cap set bcap-3 cap]
+  if the-block = 4 [set cap block-4-cap set bcap-4 cap]
   set cap min list cap truck-count ; prevent error due to lesser truck than cap limit
   repeat cap [
     ask one-of trucks with [block = the-block and inside? = false] [
@@ -144,6 +163,34 @@ end
 
 to print-error
   if crane-deficit > 0 [print "hi! note that crane workload exceeds capacity!"]
+end
+
+to auto-block-cap
+  auto-move-inside 1
+  auto-move-inside 2
+  auto-move-inside 3
+  auto-move-inside 4
+end
+
+to auto-move-inside [the-block]
+  let x 20
+  let y (the-block - 1 )
+  let cap 0
+  let truck-count count trucks with [block = the-block and inside? = false and appointment? = true] ; only count the one with appointment
+  set cap truck-count
+; to update plot
+  if the-block = 1 [set bcap-1 cap]
+  if the-block = 2 [set bcap-2 cap]
+  if the-block = 3 [set bcap-3 cap]
+  if the-block = 4 [set bcap-4 cap]
+;  set cap min list cap truck-count ; prevent error due to lesser truck than cap limit
+  repeat cap [
+    ask one-of trucks with [block = the-block and inside? = false] [
+    setxy x y
+    set inside? true
+    set x x + 1
+  ]
+  ]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -246,7 +293,7 @@ block-1-cap
 block-1-cap
 0
 20
-10.0
+14.0
 1
 1
 NIL
@@ -261,7 +308,7 @@ block-2-cap
 block-2-cap
 0
 20
-10.0
+5.0
 1
 1
 NIL
@@ -276,7 +323,7 @@ block-3-cap
 block-3-cap
 0
 20
-10.0
+9.0
 1
 1
 NIL
@@ -291,7 +338,7 @@ block-4-cap
 block-4-cap
 0
 20
-10.0
+6.0
 1
 1
 NIL
@@ -356,7 +403,7 @@ n-of-cranes
 n-of-cranes
 1
 4
-2.0
+4.0
 1
 1
 NIL
@@ -412,7 +459,7 @@ max-walk-ins
 max-walk-ins
 0
 40
-0.0
+20.0
 1
 1
 truck
@@ -427,7 +474,7 @@ max-no-shows
 max-no-shows
 0
 0.5
-0.0
+0.3
 0.01
 1
 NIL
@@ -451,7 +498,7 @@ SWITCH
 289
 fixed-mode?
 fixed-mode?
-0
+1
 1
 -1000
 
@@ -548,6 +595,38 @@ SWITCH
 361
 consider-crane-cap?
 consider-crane-cap?
+0
+1
+-1000
+
+PLOT
+923
+111
+1193
+261
+block cap
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+true
+"" ""
+PENS
+"bcap-4" 1.0 0 -13840069 true "" "plot bcap-4"
+"bcap-3" 1.0 0 -13345367 true "" "plot bcap-3"
+"bcap-2" 1.0 0 -2674135 true "" "plot bcap-2"
+"bcap-1" 1.0 0 -5825686 true "" "plot bcap-1"
+
+SWITCH
+1198
+113
+1309
+146
+auto-cap?
+auto-cap?
 0
 1
 -1000
