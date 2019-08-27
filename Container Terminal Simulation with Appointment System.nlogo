@@ -85,7 +85,7 @@ to setup
     set pcolor grey]
 
   ask patches with [pycor >= 17][
-    set pcolor yellow]
+    set pcolor 47]
 
   create-containers 1000 [
     set z-cor 0
@@ -1470,7 +1470,7 @@ capacity-threshold
 capacity-threshold
 0
 1
-0.25
+1.0
 0.01
 1
 NIL
@@ -1528,7 +1528,7 @@ CHOOSER
 queue-function
 queue-function
 "crane-based" "distance-based" "time-based"
-0
+2
 
 MONITOR
 393
@@ -1619,7 +1619,7 @@ platform-sync
 platform-sync
 0
 1
-0.5
+1.0
 0.1
 1
 NIL
@@ -1633,7 +1633,7 @@ SLIDER
 queue-threshold
 queue-threshold
 0
-200
+100
 20.0
 1
 1
@@ -1702,7 +1702,7 @@ SWITCH
 155
 queue-system?
 queue-system?
-0
+1
 1
 -1000
 
@@ -1713,7 +1713,7 @@ SWITCH
 249
 capacity-system?
 capacity-system?
-0
+1
 1
 -1000
 
@@ -2084,6 +2084,90 @@ NetLogo 6.0.4
     </enumeratedValueSet>
     <enumeratedValueSet variable="opportunistic?">
       <value value="true"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="original" repetitions="30" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>plot-wait</metric>
+    <metric>plot-terminal-time</metric>
+    <metric>plot-queue-time</metric>
+    <metric>queue-length</metric>
+    <metric>num-trucks-serviced</metric>
+    <enumeratedValueSet variable="truck-arrival">
+      <value value="2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="queue-threshold">
+      <value value="20"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="queue-function">
+      <value value="&quot;time-based&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="queue-system?">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="semi-committed?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="capacity-threshold">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="show-start-time?">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="crane-pick-goal-function">
+      <value value="&quot;eq-1&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="capacity-system?">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="opportunistic?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="platform-sync">
+      <value value="0"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="platform100" repetitions="30" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>plot-wait</metric>
+    <metric>plot-terminal-time</metric>
+    <metric>plot-queue-time</metric>
+    <metric>queue-length</metric>
+    <metric>num-trucks-serviced</metric>
+    <enumeratedValueSet variable="truck-arrival">
+      <value value="2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="queue-threshold">
+      <value value="20"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="queue-function">
+      <value value="&quot;time-based&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="queue-system?">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="semi-committed?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="capacity-threshold">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="show-start-time?">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="crane-pick-goal-function">
+      <value value="&quot;eq-1&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="capacity-system?">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="opportunistic?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="platform-sync">
+      <value value="1"/>
     </enumeratedValueSet>
   </experiment>
 </experiments>
