@@ -774,10 +774,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot count turtles"
 
 BUTTON
-0
-108
-119
-141
+9
+112
+100
+145
 NIL
 do-appointment
 NIL
