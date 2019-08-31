@@ -24,6 +24,7 @@ epsilon; higher value leads to explore more often
 extensions [ table ]
 
 breed [trucks truck]
+breed [cranes crane]
 
 trucks-own [block inside? appointment?]
 
@@ -51,8 +52,11 @@ to go
 end
 
 to go-manual
-  to-move ; run with static / manual block cap
-;  auto-block-cap ; run with automatic block cap
+  ifelse auto-cap? = true [
+    auto-block-cap ; run with automatic block cap
+  ][
+    to-move ; simulate the pick up process
+  ]
   setup-plot
   print-error
   tick
@@ -80,10 +84,26 @@ to initiate
   ]
   create-trucks n-walk-ins [ ; create trucks walk ins
     set shape "truck"
-    set color yellow
+    set color grey
     set inside? false
     set appointment? false
     find-empty-position
+  ]
+  show-cranes
+end
+
+to show-cranes
+  let x max-pxcor
+  repeat n-of-cranes [
+  create-cranes 1 [
+    set shape "arrow"
+    set color white
+    set heading 0
+      setxy x 4
+    if any? other turtles-here [
+      set x x - 1
+      setxy x 4]
+  ]
   ]
 end
 
@@ -115,8 +135,10 @@ to move-inside [the-block]
   if the-block = 3 [set cap block-3-cap set bcap-3 cap]
   if the-block = 4 [set cap block-4-cap set bcap-4 cap]
   set cap min list cap truck-count ; prevent error due to lesser truck than cap limit
-  repeat cap [
-    ask one-of trucks with [block = the-block and inside? = false] [
+  repeat cap [ ; moving inside
+    let the-truck one-of trucks with [block = the-block and inside? = false and appointment? = true] ; prioritize trucks with appointment first
+    if the-truck = nobody [set the-truck one-of trucks with [block = the-block and inside? = false]] ; then, let the walk ins enter
+    ask the-truck [
     setxy x y
     set inside? true
     set x x + 1
@@ -124,18 +146,19 @@ to move-inside [the-block]
   ]
 end
 
-to-report terminal-time
+to-report terminal-time ; calculate wait time for trucks inside
   let n count trucks with [inside? = true]
-  let n-exceed max list 0 (n - (n-of-cranes * crane-max-capability)) ; trucks that exceed the crane capability will calculated with penalty time
-  let n-ok n - n-exceed
+  let optimal min list (n-of-cranes * crane-max-capability) n
+  let remaining max list 0 (n - optimal) ; trucks that exceed the crane capability will calculated with penalty time
+  let nor-time optimal * normal-service-time
+  let pen-time abs remaining * penalty-service-time
   if (consider-crane-cap? = false) [ ; if set to false, all trucks inside will be calculated with normal truck time
-    set n-exceed 0
-    set n-ok n
+    set pen-time abs remaining * normal-service-time
   ]
-  report (n-ok * normal-service-time) + (n-exceed * penalty-time)
+  report nor-time + pen-time
 end
 
-to-report penalty-time
+to-report penalty-time ; calculate wait time for trucks outside
   let n count trucks with [inside? = false]
   let t-penalty (n *(n + 1)) / 2
   ; turn on n-th triangular penalty; the more trucks queueing outside, the higher the penalty wait time
@@ -185,7 +208,9 @@ to auto-move-inside [the-block]
   if the-block = 4 [set bcap-4 cap]
 ;  set cap min list cap truck-count ; prevent error due to lesser truck than cap limit
   repeat cap [
-    ask one-of trucks with [block = the-block and inside? = false] [
+    let the-truck one-of trucks with [block = the-block and inside? = false and appointment? = true]
+    if the-truck = nobody [set the-truck one-of trucks with [block = the-block and inside? = false]]
+    ask the-truck [
     setxy x y
     set inside? true
     set x x + 1
@@ -263,7 +288,7 @@ n-of-trucks
 n-of-trucks
 1
 80
-40.0
+30.0
 1
 1
 NIL
@@ -278,7 +303,7 @@ crane-max-capability
 crane-max-capability
 1
 20
-20.0
+15.0
 1
 1
 truck
@@ -293,7 +318,7 @@ block-1-cap
 block-1-cap
 0
 20
-14.0
+10.0
 1
 1
 NIL
@@ -308,7 +333,7 @@ block-2-cap
 block-2-cap
 0
 20
-5.0
+10.0
 1
 1
 NIL
@@ -323,7 +348,7 @@ block-3-cap
 block-3-cap
 0
 20
-9.0
+10.0
 1
 1
 NIL
@@ -338,7 +363,7 @@ block-4-cap
 block-4-cap
 0
 20
-6.0
+10.0
 1
 1
 NIL
@@ -353,7 +378,7 @@ normal-service-time
 normal-service-time
 1
 100
-15.0
+30.0
 1
 1
 mins
@@ -368,7 +393,7 @@ penalty-service-time
 penalty-service-time
 1
 100
-25.0
+40.0
 1
 1
 mins
@@ -428,7 +453,7 @@ PENS
 "max capacity" 1.0 0 -7500403 true "" "plot crane-max-time"
 "unproductive" 1.0 0 -13345367 true "" "plot crane-unproductive-time"
 "productive" 1.0 0 -13840069 true "" "plot crane-productive-time"
-"deficit" 1.0 0 -2674135 true "" "plot crane-deficit"
+"over" 1.0 0 -2674135 true "" "plot crane-deficit"
 
 PLOT
 650
@@ -474,7 +499,7 @@ max-no-shows
 max-no-shows
 0
 0.5
-0.3
+0.1
 0.01
 1
 NIL
@@ -498,7 +523,7 @@ SWITCH
 289
 fixed-mode?
 fixed-mode?
-1
+0
 1
 -1000
 
@@ -558,10 +583,10 @@ NIL
 MONITOR
 714
 15
-776
+789
 60
-total cap
-block-1-cap + block-2-cap + block-3-cap + block-4-cap
+truck inside
+count trucks with [inside? = true]
 17
 1
 11
@@ -578,10 +603,10 @@ triangular-penalty?
 -1000
 
 MONITOR
-781
-15
-909
-60
+878
+16
+1006
+61
 optimal trucks for crane
 n-of-cranes * crane-max-capability
 17
@@ -621,15 +646,26 @@ PENS
 "bcap-1" 1.0 0 -5825686 true "" "plot bcap-1"
 
 SWITCH
-1198
-113
-1309
-146
+1200
+112
+1311
+145
 auto-cap?
 auto-cap?
 0
 1
 -1000
+
+MONITOR
+790
+16
+875
+61
+truck outside
+count trucks with [inside? = false]
+17
+1
+11
 
 @#$#@#$#@
 ## WHAT IS IT?
