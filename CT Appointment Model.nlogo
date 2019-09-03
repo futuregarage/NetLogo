@@ -29,7 +29,7 @@ cranes-own [
 ]
 
 trucks-own [
-  cargo ;the container that I want to get
+  cargo ; the container that I want to get
   my-group
   my-stack
   my-start-time ; creation time of each truck
@@ -43,6 +43,7 @@ trucks-own [
   my-terminal-time ; starting ticks when truck is inside terminal
   my-queue-time ; total time trucks outside terminal queueing
   my-client
+  book?
 ]
 
 ;ticks: each tick is one second
@@ -77,6 +78,8 @@ globals [
   num-app-serviced
   num-no-shows
   current-interval
+  total-appointment-wt
+  total-walkin-wt
 ]
 
 to setup
@@ -107,6 +110,8 @@ to go
   do-arrive
   do-move
 
+;  truck-error-check
+
   ask cranes [go-crane]
   tick
 ;  update-idling-time
@@ -114,9 +119,37 @@ to go
 end
 
 to do-move
-  let the-truck one-of trucks with [waiting = false and my-crane = nobody]
+  ; count truck threshold inside terminal
+  let tlane list 0 0
+  let wlane (list 8 9 10 11 12) ; list of ycor that
+  let ntruck count trucks with [member? ycor tlane]
+  if ntruck >= slot-per-session [stop] ; set the threshold for trucks allowed inside based on slot per sessions
+
+  ; choose the truck to be let inside
+  let booked-truck count trucks with [member? ycor wlane and book? = true]
+  let the-truck 0
+
+  ; sequence 1
+  if sequencing = "random" [ ; randomly let any trucks
+    set the-truck one-of trucks with [waiting = false and my-crane = nobody]
+  ]
+
+  ; sequence 2
+  if sequencing = "appointment-first" [ ; let the one with appointment first, then the walk ins for the remaining slots
+    ifelse booked-truck > 0 [
+      set the-truck one-of trucks with [waiting = false and my-crane = nobody and book? = true]
+    ][
+;      ifelse current-interval = interval [ ; use interval delay, adjusted in do-arrive procedure
+      set the-truck one-of trucks with [waiting = false and my-crane = nobody]
+;      ]
+;      [stop]
+    ]
+  ]
+
+  ; move
   if the-truck = nobody [stop]
   ask the-truck [
+    if cargo = nobody [stop]
     goto-container
     stack-slot-check ; check if there is already truck in the destination
   ]
@@ -140,8 +173,10 @@ end
 
 to init-container
   let amt 500
+;  let n-cont 0
   let n-cont count containers
   let buffer max list 0 (amt - n-cont)
+;  create-containers 100 [
   create-containers buffer [
     set z-cor 0
     set shape "square"
@@ -175,17 +210,19 @@ to init-client
     let my-y (random 5) + 13
     setxy my-x my-y
     set shape "person"
-    set color green
+    set color black
     set cargo nobody
     set my-truck nobody
+    set book? 0 ; as an indicator of a new client
   ]
 end
 
 to do-appointment ; appointments are made in each beginning of sessions
   repeat slot-per-session [
-    let the-client one-of clients with [cargo = nobody]
+    let the-client one-of clients with [book? = 0]
     if (the-client = nobody) [stop]
-    let the-cargo one-of containers with [my-truck = nobody]
+    let the-cargo one-of containers with [my-truck = nobody and pick-me = false]
+    if (the-cargo = nobody) [stop]
     ask the-client [
       set book? true
       set my-start-time ticks
@@ -204,14 +241,14 @@ to do-walk-in ; walk ins are generated each interval (second)
   ifelse current-interval = interval [
     let the-client one-of clients with [cargo = nobody]
     if (the-client = nobody) [stop]
-    let the-cargo one-of containers with [my-truck = nobody]
+    let the-cargo one-of containers with [my-truck = nobody and pick-me = false]
     if random-float 1.0 < walk-ins [
       ask the-client [
+;        if (cargo = nobody) [die stop] ; all stacks are full!!
         set book? false
         set my-start-time ticks
-        set color red
+        set color yellow
         set cargo the-cargo
-        if (cargo = nobody) [die stop] ; all stacks are full!!
         ask cargo [
           set color red
           set size 1]
@@ -226,10 +263,13 @@ end
 
 to do-arrive ;ask a client to create his/her truck, with a prob of no show
   let the-client one-of clients with [cargo != nobody and my-truck = nobody]
-  if (the-client = nobody) [stop]
+  ifelse (the-client = nobody) [stop]
+  [
   ifelse random-float 1.0 < no-shows [
     ask the-client [
-      set num-no-shows num-no-shows + 1
+      if book? = true [ ; does not count walk in no shows
+        set num-no-shows num-no-shows + 1
+      ]
       ask cargo [
         set color black
         set size .6
@@ -243,17 +283,31 @@ to do-arrive ;ask a client to create his/her truck, with a prob of no show
       let my-y (random 5) + 8
       setxy my-x my-y
       set shape "truck"
-      set color blue
       set waiting false
       set my-start-time ticks
       set my-crane nobody ; no crane booked this truck yet
       set on-service false ; set on-service false at first
       set cargo [cargo] of the-client
+;        if cargo = nobody [die stop]
       ask cargo [set my-truck myself]
+      set book? [book?] of the-client
+
+      ifelse book? = true [set color blue][set color yellow]
+
       set my-group [my-group] of cargo
       set my-stack [my-stack] of cargo
       set my-client the-client
       ask the-client [set my-truck myself]
+    ]
+  ]
+  ]
+end
+
+to truck-error-check
+  let x count trucks with [member? ycor list 7 7 and cargo = nobody]
+  if x > 0 [
+    ask trucks with [member? ycor list 7 7 and cargo = nobody] [
+      die
     ]
   ]
 end
@@ -276,6 +330,29 @@ to-report avg-app-time
   report total-app-time / num-app-serviced
 end
 
+to-report actual-no-show-rate
+  let x sessions + 1
+  if x < 1 [report 0]
+  report num-no-shows / (x * slot-per-session)
+end
+
+to-report avg-walkin-wt
+  let x max list 0 (num-trucks-serviced - num-app-serviced)
+  if x = 0 [report 0]
+  report total-walkin-wt / x
+end
+
+to-report avg-appointment-wt
+  let x max list 0 num-app-serviced
+  if x = 0 [report 0]
+  report total-appointment-wt / x
+end
+
+to-report avg-both-wt
+  let x num-trucks-serviced
+  if x = 0 [report 0]
+  report (total-walkin-wt + total-appointment-wt) / x
+end
 ;;;;;;;;;;;;;
 
 
@@ -369,7 +446,7 @@ to go-crane
       let goalp []
 
       ;;;;;; =============== crane choice of utility function starts =================
-      if (crane-pick-goal-function = "FCFO") [set goalp pick-goal-position-fcfo]
+      if (crane-pick-goal-function = "FIFO") [set goalp pick-goal-position-fcfo]
       if (crane-pick-goal-function = "distance") [set goalp pick-goal-position-distance]
       ;;;;;;; ================= crane choice of utility function ends =======================
 
@@ -528,7 +605,7 @@ to-report pick-goal-position
   let chosen-truck one-of trucks with [not waiting]
   if (chosen-truck = nobody) [
     report nobody]
-  ask chosen-truck [set color yellow]
+;  ask chosen-truck [set color yellow]
   report [group-stack] of chosen-truck
 end
 
@@ -537,7 +614,7 @@ to-report pick-goal-position-fcfo
   let chosen-truck min-one-of (trucks with [not waiting]) [my-start-time]
   if (chosen-truck = nobody) [
     report nobody]
-  ask chosen-truck [set color yellow]
+;  ask chosen-truck [set color yellow]
   report [group-stack] of chosen-truck
 end
 
@@ -547,7 +624,7 @@ to-report pick-goal-position-distance
   if (chosen-truck = nobody) [
     report nobody]
 ; original code
-   ask chosen-truck [set color yellow]
+;   ask chosen-truck [set color yellow]
    report [group-stack] of chosen-truck
 end
 
@@ -558,8 +635,6 @@ end
 ;moves the-container to the truck it belongs to, if the-container has no other containers on top of itself
 ;if the-container has another container on top then the top container is moved to the lowest pile in the stack
 to deliver-container [the-container]
-
-
   let pile-height max ([z-cor] of containers-on the-container)
   ifelse ([z-cor] of the-container = pile-height) [ ;the-container is at the top
     let the-truck trucks-in-this-stack
@@ -573,6 +648,14 @@ to deliver-container [the-container]
       set total-service-time total-service-time + (ticks - service-time) ; update service time
       set total-terminal-time total-terminal-time + (ticks - my-terminal-time) ; update terminal time
       set total-queue-time total-queue-time + my-queue-time ; update queue time
+
+      ; count wait times separately
+      ifelse book? = true [
+        set total-appointment-wt total-appointment-wt + (ticks - my-start-time)
+      ][
+        set total-walkin-wt total-walkin-wt + (ticks - my-start-time)
+      ]
+
       ask my-client [
         if book? = false [die] ; if it a walk ins then do not count for app time
         set total-app-time total-app-time + (ticks - my-start-time)
@@ -587,12 +670,11 @@ to deliver-container [the-container]
 ;;;; truck waiting rules
     if (any? containers-with-truck) [
       ask (one-of [my-truck] of containers-with-truck) [ ;if any trucks are waiting for this spot, pick one and move him here
-        goto-container
-        set waiting false
+;        goto-container
+        set waiting false ; mark that their stack is empty so they can get called in next do-move action
       ]
-;;;;;
-
     ]
+;;;;;
     stop
   ][ ;the-container is not at the top, move top container to smallest column in this stack
 
@@ -647,10 +729,10 @@ to move-to-position [ypos]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-117
-13
-671
-256
+7
+14
+561
+257
 -1
 -1
 13.0
@@ -674,10 +756,10 @@ ticks
 30.0
 
 BUTTON
-16
-18
-79
-51
+7
+275
+70
+308
 NIL
 setup
 NIL
@@ -691,106 +773,76 @@ NIL
 1
 
 SLIDER
-683
-15
-855
-48
+578
+16
+750
+49
 n-demand
 n-demand
 0
 100
-50.0
+55.0
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-867
-15
-1039
-48
+579
+138
+751
+171
 walk-ins
 walk-ins
 0
 1
-0.0
+0.2
 0.01
 1
 NIL
 HORIZONTAL
 
 SLIDER
-867
-60
-1039
-93
+578
+179
+750
+212
 no-shows
 no-shows
 0
 1
 0.0
-0.01
-1
-NIL
-HORIZONTAL
-
-SLIDER
-1272
-15
-1444
-48
-punctuality
-punctuality
-0
-1
-0.54
-0.01
-1
-NIL
-HORIZONTAL
-
-SLIDER
-1274
-57
-1446
-90
-truck-arrival
-truck-arrival
-0
-2
-1.0
 0.01
 1
 NIL
 HORIZONTAL
 
 SWITCH
-1054
-64
-1187
-97
+767
+129
+922
+162
 opportunistic?
 opportunistic?
-0
+1
 1
 -1000
 
 CHOOSER
-1052
-10
-1210
-55
+764
+73
+922
+118
 crane-pick-goal-function
 crane-pick-goal-function
-"FCFO" "distance"
+"FIFO" "distance"
 1
 
 BUTTON
-17
-60
-80
-93
+78
+276
+141
+309
 NIL
 go
 T
@@ -804,25 +856,25 @@ NIL
 1
 
 SLIDER
-682
-62
-854
-95
+578
+57
+750
+90
 slot-per-session
 slot-per-session
 0
 40
-21.0
+25.0
 1
 1
 NIL
 HORIZONTAL
 
 PLOT
-303
-328
-503
-478
+210
+334
+410
+484
 appointment lead time
 NIL
 NIL
@@ -837,10 +889,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot avg-app-time"
 
 PLOT
-508
-327
-708
-477
+415
+333
+615
+483
 average wait time
 NIL
 NIL
@@ -849,16 +901,18 @@ NIL
 0.0
 10.0
 true
-false
+true
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot avg-wait-time"
+"total" 1.0 0 -7500403 true "" "plot avg-wait-time"
+"appointment" 1.0 0 -8732573 true "" "plot avg-appointment-wt"
+"walk-in" 1.0 0 -2674135 true "" "plot avg-walkin-wt"
 
 PLOT
-99
-327
-299
-477
+6
+333
+206
+483
 crane utilization
 NIL
 NIL
@@ -872,28 +926,11 @@ false
 PENS
 "default" 1.0 0 -16777216 true "" "plot crane-utilization"
 
-BUTTON
-9
-112
-100
-145
-NIL
-do-appointment
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
 SWITCH
-333
-274
-436
-307
+161
+278
+251
+311
 test?
 test?
 0
@@ -901,10 +938,10 @@ test?
 -1000
 
 MONITOR
-10
-265
-69
-310
+272
+274
+354
+319
 NIL
 sessions
 17
@@ -912,10 +949,10 @@ sessions
 11
 
 PLOT
-712
-327
-912
-477
+617
+485
+817
+635
 clients
 NIL
 NIL
@@ -931,39 +968,11 @@ PENS
 "walk-in" 1.0 0 -2674135 true "" "plot count clients with [book? = false]"
 "booking" 1.0 0 -10899396 true "" "plot count clients with [book? = true]"
 
-BUTTON
-11
-162
-93
-195
-NIL
-do-arrive
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-MONITOR
-8
-206
-102
-251
-NIL
-num-no-shows
-17
-1
-11
-
 PLOT
-914
-327
-1114
-477
+210
+486
+410
+636
 waiting trucks
 NIL
 NIL
@@ -978,14 +987,14 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot count trucks with [waiting = true]"
 
 SLIDER
-685
-105
-857
-138
+579
+99
+751
+132
 interval
 interval
 0
-600
+300
 60.0
 1
 1
@@ -993,10 +1002,10 @@ sec
 HORIZONTAL
 
 PLOT
-1116
-325
-1316
-475
+415
+486
+615
+636
 trucks serviced
 NIL
 NIL
@@ -1009,6 +1018,63 @@ false
 "" ""
 PENS
 "default" 1.0 0 -16777216 true "" "plot num-trucks-serviced"
+
+CHOOSER
+764
+16
+921
+61
+sequencing
+sequencing
+"appointment-first" "random"
+0
+
+PLOT
+1419
+402
+1619
+552
+plot 1
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot count turtles"
+
+PLOT
+5
+487
+205
+637
+no shows / appointment
+NIL
+NIL
+0.0
+10.0
+0.0
+1.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot actual-no-show-rate"
+
+MONITOR
+1024
+186
+1377
+231
+NIL
+count trucks with [member? ycor list 7 7 and cargo = nobody]
+17
+1
+11
 
 @#$#@#$#@
 ## WHAT IS IT?
