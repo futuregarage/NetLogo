@@ -214,15 +214,14 @@ end
 to init-client
   let n-client count clients
   let buffer max list 0 (n-demand - n-client)
-  create-clients buffer [
-    let my-x random max-pxcor
-    let my-y (random 5) + 13
-    setxy my-x my-y
-    set shape "person"
-    set color black
-    set cargo nobody
-    set my-truck nobody
-    set book? 0 ; as an indicator of a new client
+  ask n-of buffer patches with [ pycor > 12 and not any? clients-here][
+    sprout-clients 1 [
+      set shape "person"
+      set color black
+      set cargo nobody
+      set my-truck nobody
+      set book? 0 ; as an indicator of a new client
+    ]
   ]
 end
 
