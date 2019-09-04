@@ -255,7 +255,7 @@ to do-appointment ; appointments are made in each beginning of sessions
   ]
 end
 
-to do-walk-in ; walk ins are generated each interval (second),
+to do-walk-in ; walk ins are generated each interval (second)
   ifelse current-interval = interval [
     let the-client one-of clients with [cargo = nobody]
     if (the-client = nobody) [stop]
@@ -1061,7 +1061,7 @@ CHOOSER
 sequencing
 sequencing
 "appointment-first" "random"
-0
+1
 
 PLOT
 5
