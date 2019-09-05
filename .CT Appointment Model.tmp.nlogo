@@ -9,6 +9,7 @@ clients-own [
   my-start-time
   book?
   order
+  my-arrival-time
 ]
 
 containers-own [
@@ -45,6 +46,7 @@ trucks-own [
   my-queue-time ; total time trucks outside terminal queueing
   my-client
   book?
+  my-arrival-time ; the time he booked slot for
 ]
 
 ;ticks: each tick is one second
@@ -79,13 +81,21 @@ globals [
   num-app-serviced
   num-no-shows
   current-interval
-  total-appointment-wt
-  total-walkin-wt
   globals-order
   spillover
   spillover-app
   spillover-walkin
   stack-list
+  total-appointment-wt
+  total-walkin-wt
+  total-appointment-st
+  total-walkin-st
+  total-appointment-qt
+  total-walkin-qt
+
+; emission constant
+  t
+
 ]
 
 to setup
@@ -118,6 +128,7 @@ to go
 
   do-walk-in
   do-arrive
+  appointment-arrival
   do-move
 
   appointment-error-check ; bug fix
@@ -214,20 +225,21 @@ end
 to init-client
   let n-client count clients
   let buffer max list 0 (n-demand - n-client)
-  create-clients buffer [
-    let my-x random max-pxcor
-    let my-y (random 5) + 13
-    setxy my-x my-y
-    set shape "person"
-    set color black
-    set cargo nobody
-    set my-truck nobody
-    set book? 0 ; as an indicator of a new client
+  ask n-of buffer patches with [ pycor > 12 and not any? clients-here][
+    sprout-clients 1 [
+      set shape "person"
+      set color black
+      set cargo nobody
+      set my-truck nobody
+      set book? 0 ; as an indicator of a new client
+    ]
   ]
 end
 
 to do-appointment ; appointments are made in each beginning of sessions
   set stack-list [] ; a list of stack that has been booked, reset every new session
+  let set-arrival-time round (3600 / slot-per-session) ; 1 hour per slot per session
+  let x 1
   repeat slot-per-session [
     let the-client one-of clients with [book? = 0]
     if (the-client = nobody) [stop]
@@ -249,13 +261,16 @@ to do-appointment ; appointments are made in each beginning of sessions
         ]
       set my-truck nobody
 
+      set my-arrival-time (set-arrival-time * x) + ticks
+
       ;update the stack-list
       set stack-list fput [my-stack] of cargo stack-list
+      set x x + 1
     ]
   ]
 end
 
-to do-walk-in ; walk ins are generated each interval (second)
+to do-walk-in ; walk ins are generated each interval (second),
   ifelse current-interval = interval [
     let the-client one-of clients with [cargo = nobody]
     if (the-client = nobody) [stop]
@@ -280,10 +295,45 @@ to do-walk-in ; walk ins are generated each interval (second)
   ]
 end
 
-to do-arrive ;ask a client to create his/her truck, with a prob of no show
+to do-arrive ;ask a client to create his/her truck
+
   let the-client one-of clients with [cargo != nobody and my-truck = nobody]
-  ifelse (the-client = nobody) [stop]
-  [
+  ifelse (the-client = nobody) [stop][
+
+      if ([book?] of the-client = true)[stop] ; booking trucks are not created here
+
+      create-trucks 1 [
+      let my-x random max-pxcor
+      let my-y (random 5) + 8
+      setxy my-x my-y
+      set shape "truck"
+      set waiting false
+      set my-start-time ticks
+      set my-crane nobody ; no crane booked this truck yet
+      set on-service false ; set on-service false at first
+      set cargo [cargo] of the-client
+      ask cargo [set my-truck myself]
+      set book? [book?] of the-client
+
+      ; appointment function
+      ifelse book? = true [
+          set color green
+        ][
+          set color yellow
+        ]
+
+      set my-group [my-group] of cargo
+      set my-stack [my-stack] of cargo
+      set my-client the-client
+      ask the-client [set my-truck myself]
+    ]
+  ]
+end
+
+to appointment-arrival ; procedure for appointment arrival, with a chance of no-show
+  let the-client one-of clients with [my-arrival-time = ticks and book? = true and cargo != nobody]
+  ifelse the-client != nobody [
+
   ifelse random-float 1.0 < no-shows [
     ask the-client [
       if book? = true [ ; does not count walk in no shows
@@ -297,7 +347,7 @@ to do-arrive ;ask a client to create his/her truck, with a prob of no show
       die
     ]
   ][
-    create-trucks 1 [
+      create-trucks 1 [
       let my-x random max-pxcor
       let my-y (random 5) + 8
       setxy my-x my-y
@@ -307,11 +357,10 @@ to do-arrive ;ask a client to create his/her truck, with a prob of no show
       set my-crane nobody ; no crane booked this truck yet
       set on-service false ; set on-service false at first
       set cargo [cargo] of the-client
-;        if cargo = nobody [die stop]
       ask cargo [set my-truck myself]
       set book? [book?] of the-client
 
-; appointment function
+      ; appointment function
       ifelse book? = true [
           set color green
         ][
@@ -324,6 +373,8 @@ to do-arrive ;ask a client to create his/her truck, with a prob of no show
       ask the-client [set my-truck myself]
     ]
   ]
+  ][
+    stop
   ]
 end
 
@@ -331,6 +382,7 @@ to appointment-error-check
   let x count clients with [book? = true and cargo = nobody]
   if x > 0 [
     ask clients with [book? = true and cargo = nobody] [
+      if my-truck = nobody [stop]
       ask my-truck [die]
       die
     ]
@@ -370,6 +422,10 @@ to-report actual-no-show-rate
   report num-no-shows / (x * slot-per-session)
 end
 
+; wt = wait time, time from truck creation to die
+; st = service time, time from crane chose a truck to die
+; qt = queue time, time from truck creation to service time
+
 to-report avg-walkin-wt
   let x max list 0 (num-trucks-serviced - num-app-serviced)
   if x = 0 [report 0]
@@ -387,6 +443,47 @@ to-report avg-both-wt
   if x = 0 [report 0]
   report (total-walkin-wt + total-appointment-wt) / x
 end
+
+;;;;;;;;;
+
+to-report avg-appointment-st
+  let x max list 0 num-app-serviced
+  if x = 0 [report 0]
+  report total-appointment-st / x
+end
+
+to-report avg-walkin-st
+  let x max list 0 (num-trucks-serviced - num-app-serviced)
+  if x = 0 [report 0]
+  report total-walkin-st / x
+end
+
+to-report avg-both-st
+  let x num-trucks-serviced
+  if x = 0 [report 0]
+  report (total-walkin-st + total-appointment-st) / x
+end
+
+;;;;;;;;;
+
+to-report avg-appointment-qt
+  let x max list 0 num-app-serviced
+  if x = 0 [report 0]
+  report total-appointment-qt / x
+end
+
+to-report avg-walkin-qt
+  let x max list 0 (num-trucks-serviced - num-app-serviced)
+  if x = 0 [report 0]
+  report total-walkin-qt / x
+end
+
+to-report avg-both-qt
+  let x num-trucks-serviced
+  if x = 0 [report 0]
+  report (total-walkin-qt + total-appointment-qt) / x
+end
+
 ;;;;;;;;;;;;;
 
 
@@ -510,10 +607,10 @@ to go-crane
     if (item 0 goal-position-xy = xcor and item 1 goal-position-xy = ycor) [;we are at the goal, next time deliver container
       let the-truck trucks-in-this-stack
 
-    ;;;;;;
-    ask the-truck [
-    set on-service true
-    set service-time ticks] ; set on-service on truck true
+    ;;;;;; this only calculate service time when crane arrived in the trucks' stack, resulting a static service time
+;    ask the-truck [
+;    set on-service true
+;    set service-time ticks] ; set on-service on truck true
     ;;;;;
       set goal (list ticks-to-deliver "deliver-container" (item 0 [cargo] of the-truck))
     ]
@@ -645,9 +742,15 @@ end
 
 ;returns the [group stack] of the truck that has waited the longest
 to-report pick-goal-position-fcfo
-  let chosen-truck min-one-of (trucks with [not waiting]) [my-start-time]
+  let chosen-truck min-one-of (trucks with [not waiting and member? ycor list 0 0] ) [my-start-time]
   if (chosen-truck = nobody) [
-    report nobody]
+    report nobody
+  ]
+  ask chosen-truck [
+    set service-time ticks
+    set on-service true
+;    set color yellow
+  ]
 ;  ask chosen-truck [set color yellow]
   report [group-stack] of chosen-truck
 end
@@ -656,9 +759,13 @@ end
 to-report pick-goal-position-distance
   let chosen-truck max-one-of (trucks with [not waiting]) [utility-eq-1 myself]
   if (chosen-truck = nobody) [
-    report nobody]
-; original code
-;   ask chosen-truck [set color yellow]
+    report nobody
+  ]
+  ask chosen-truck [
+    set service-time ticks
+    set on-service true
+;    set color yellow
+  ]
    report [group-stack] of chosen-truck
 end
 
@@ -683,11 +790,16 @@ to deliver-container [the-container]
       set total-terminal-time total-terminal-time + (ticks - my-terminal-time) ; update terminal time
       set total-queue-time total-queue-time + my-queue-time ; update queue time
 
+
       ; count wait times separately
       ifelse book? = true [
         set total-appointment-wt total-appointment-wt + (ticks - my-start-time)
+        set total-appointment-st total-appointment-st + (ticks - service-time)
+        set total-appointment-qt total-appointment-qt + (service-time - my-start-time)
       ][
         set total-walkin-wt total-walkin-wt + (ticks - my-start-time)
+        set total-walkin-st total-walkin-st + (ticks - service-time)
+        set total-walkin-qt total-walkin-qt + (service-time - my-start-time)
       ]
 
       ask my-client [
@@ -815,7 +927,7 @@ n-demand
 n-demand
 0
 100
-40.0
+100.0
 1
 1
 NIL
@@ -845,7 +957,7 @@ no-shows
 no-shows
 0
 1
-0.0
+0.5
 0.01
 1
 NIL
@@ -905,10 +1017,10 @@ NIL
 HORIZONTAL
 
 PLOT
-210
-334
-410
-484
+815
+485
+1015
+635
 appointment lead time
 NIL
 NIL
@@ -923,10 +1035,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot avg-app-time"
 
 PLOT
-415
-333
-615
-483
+206
+332
+406
+482
 average wait time
 NIL
 NIL
@@ -983,9 +1095,9 @@ sessions
 11
 
 PLOT
-617
+613
 485
-817
+813
 635
 clients
 NIL
@@ -1003,10 +1115,10 @@ PENS
 "app" 1.0 0 -10899396 true "" "plot count clients with [book? = true]"
 
 PLOT
-210
-486
-410
-636
+207
+484
+407
+634
 waiting trucks
 NIL
 NIL
@@ -1036,10 +1148,10 @@ sec
 HORIZONTAL
 
 PLOT
-415
-486
-615
-636
+411
+485
+611
+635
 trucks serviced
 NIL
 NIL
@@ -1061,13 +1173,13 @@ CHOOSER
 sequencing
 sequencing
 "appointment-first" "random"
-1
+0
 
 PLOT
 5
-487
+485
 205
-637
+635
 no shows / appointment
 NIL
 NIL
@@ -1104,10 +1216,10 @@ count clients with [book? = true and cargo = nobody]
 11
 
 PLOT
-617
-332
-817
-482
+1017
+484
+1217
+634
 spillover
 NIL
 NIL
@@ -1155,6 +1267,106 @@ count clients with [book? = false]
 17
 1
 11
+
+PLOT
+409
+331
+609
+481
+average service time
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+true
+"" ""
+PENS
+"total" 1.0 0 -7500403 true "" "plot avg-both-st"
+"walk-in" 1.0 0 -2674135 true "" "plot avg-walkin-st"
+"app" 1.0 0 -10899396 true "" "plot avg-appointment-st"
+
+PLOT
+612
+331
+812
+481
+average queue time
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+true
+"" ""
+PENS
+"total" 1.0 0 -7500403 true "" "plot avg-both-qt"
+"walk-in" 1.0 0 -2674135 true "" "plot avg-walkin-qt"
+"app" 1.0 0 -10899396 true "" "plot avg-appointment-qt"
+
+PLOT
+815
+332
+1015
+482
+truck turnaround time
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+true
+"" ""
+PENS
+"total" 1.0 0 -7500403 true "" "plot avg-both-wt"
+"queue" 1.0 0 -2674135 true "" "plot avg-both-qt"
+"service" 1.0 0 -10899396 true "" "plot avg-both-st"
+
+PLOT
+1016
+331
+1216
+481
+tta - appointment
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+true
+"" ""
+PENS
+"total" 1.0 0 -7500403 true "" "plot avg-appointment-wt"
+"queue" 1.0 0 -2674135 true "" "plot avg-appointment-qt"
+"service" 1.0 0 -10899396 true "" "plot avg-appointment-st"
+
+PLOT
+1218
+331
+1418
+481
+tta - walk-in
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+true
+"" ""
+PENS
+"total" 1.0 0 -7500403 true "" "plot avg-walkin-wt"
+"queue" 1.0 0 -2674135 true "" "plot avg-walkin-qt"
+"service" 1.0 0 -10899396 true "" "plot avg-walkin-st"
 
 @#$#@#$#@
 ## WHAT IS IT?
