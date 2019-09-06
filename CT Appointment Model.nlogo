@@ -92,6 +92,16 @@ globals [
   total-walkin-st
   total-appointment-qt
   total-walkin-qt
+
+; emission constant, please convert to (gram / second)
+  truck-idle-co2
+  crane-idle-co2
+  crane-gantry-co2
+  crane-trolleynoload-co2
+  crane-trolleyload-co2
+  crane-liftnoload-co2
+  crane-liftload-co2
+
 ]
 
 to setup
@@ -142,7 +152,7 @@ to do-move
   if ntruck >= slot-per-session [stop] ; set the threshold for trucks allowed inside based on slot per sessions
 
   ; choose the truck to be let inside
-  let booked-truck count trucks with [member? ycor wlane and book? = true]
+  let booked-truck count trucks with [member? ycor wlane and book? = true] ; count trucks in the wait lane (dark grey area)
   let the-truck 0
 
   ; sequence 1
@@ -151,7 +161,7 @@ to do-move
   ]
 
   ; sequence 2
-  if sequencing = "appointment-first" [ ; let the one with appointment first, then the walk ins for the remaining slots
+  if sequencing = "loose-appointment" [ ; let the one with appointment first, then the walk ins for the remaining slots
     ifelse booked-truck > 0 [
       set the-truck one-of trucks with [waiting = false and my-crane = nobody and book? = true]
     ][
@@ -160,6 +170,16 @@ to do-move
 ;      ]
 ;      [stop]
     ]
+  ]
+
+  ; sequence 3
+  if sequencing = "strict-appointment" [ ; let only appointment truck first, then the walk ins only if no appointment trucks inside
+    let booked-truck-inside count trucks with [member? ycor tlane and book? = true]
+    ifelse booked-truck-inside = 0 [
+      set the-truck one-of trucks with [waiting = false and my-crane = nobody]
+    ][
+      set the-truck one-of trucks with [waiting = false and my-crane = nobody and book? = true]
+  ]
   ]
 
   ; move
@@ -923,7 +943,7 @@ n-demand
 n-demand
 0
 100
-100.0
+40.0
 1
 1
 NIL
@@ -938,7 +958,7 @@ walk-ins
 walk-ins
 0
 1
-0.0
+0.72
 0.01
 1
 NIL
@@ -953,7 +973,7 @@ no-shows
 no-shows
 0
 1
-0.5
+0.0
 0.01
 1
 NIL
@@ -1006,7 +1026,7 @@ slot-per-session
 slot-per-session
 0
 40
-20.0
+10.0
 1
 1
 NIL
@@ -1168,8 +1188,8 @@ CHOOSER
 61
 sequencing
 sequencing
-"appointment-first" "random"
-0
+"loose-appointment" "strict-appointment" "random"
+1
 
 PLOT
 5
@@ -1187,7 +1207,7 @@ true
 false
 "" ""
 PENS
-"default" 1.0 1 -7500403 true "" "plot actual-no-show-rate"
+"default" 1.0 0 -7500403 true "" "plot actual-no-show-rate"
 
 MONITOR
 6
@@ -1309,7 +1329,7 @@ PLOT
 332
 1015
 482
-truck turnaround time
+tta
 NIL
 NIL
 0.0
