@@ -31,9 +31,6 @@ cranes-own [
   crane-idle
   crane-service
   state?
-  t-gantry ; ticks needed for current gantry operation saved here
-  t-liftnl ; ticks needed for current lift without load operation saved here
-  t-liftl ; ticks needed for current lift with load operation saved here
 ]
 
 trucks-own [
@@ -100,12 +97,6 @@ globals [
   total-appointment-qt
   total-walkin-qt
   total-actual-bookings
-
-; globals for crane movement
-  ticks-to-lift
-  ticks-to-liftnoload
-  ticks-to-liftload
-  ticks-to-gantry
 
 ; emission constant, please convert to (gram / second)
   truck-idle-co2
@@ -243,7 +234,6 @@ to do-move
 end
 
 to init-globals
-  set ticks-to-lift 15 ; base number of crane lifting procedure
   set ticks-to-rehandle 40 ; number of ticks it takes for crane to move container from one place to another in the same stack.
   set ticks-to-deliver 50 ;number of ticks it takes for crane to move container from stack to truck
   set ticks-to-move 6 ;number of ticks it takes for the crane to move to an adjacent container
@@ -670,16 +660,10 @@ to-report crane-emission-activity
   if y = "travel" [ ; report traveling emission
     report crane-trolleynoload-co2
   ]
-  if y = "reshuffle" [
-    report crane-liftnoload-co2
-  ]
-  if y = "gantry" [
-    report crane-gantry-co2
-  ]
-  if y = "lift-load" [
+  if y = "service" [ ; report service emission
     report crane-liftload-co2
   ]
-  if y = "lift-no-load" [
+  if y = "reshuffle" [
     report crane-liftnoload-co2
   ]
 end
@@ -812,62 +796,18 @@ to go-crane
     if (item 0 goal-position-xy = xcor and item 1 goal-position-xy = ycor) [;we are at the goal, next time deliver container
       let the-truck trucks-in-this-stack
       set crane-service crane-service + 1
-      set state? "gantry"
-;     set state? "service"
+      set state? "service"
 
     ;;;;;; this only calculate service time when crane arrived in the trucks' stack, resulting a static service time
 ;    ask the-truck [
 ;    set on-service true
 ;    set service-time ticks] ; set on-service on truck true
-;;;;;;;;
-; USE DEFAULT TICKS TO DELIVER
-;      set goal (list ticks-to-deliver "deliver-container" (item 0 [cargo] of the-truck))
-
-;================================================== DEFINE TICKS
-      ; define ticks needed for picking up container, and save it on the crane
-      let target-container (item 0 [cargo] of the-truck)
-      set t-gantry abs (-7 + [ycor] of target-container)
-      set t-liftnl ticks-to-lift + 5 * abs(-4 + [z-cor] of target-container)
-      set t-liftl ticks-to-lift + 5 * abs(-4 + [z-cor] of target-container)
-
-      set goal (list t-gantry "gantry" target-container)
-
+    ;;;;;
+      set goal (list ticks-to-deliver "deliver-container" (item 0 [cargo] of the-truck))
     ]
     stop
   ]
 
-;================================================== GANTRY PROCESS
-  if (item 1 goal = "gantry") [
-    ifelse (item 0 goal != 0) [
-      set state? "gantry"
-      set goal replace-item 0 goal (item 0 goal - 1)
-  ][
-      set goal replace-item 0 goal t-liftnl
-      set goal replace-item 1 goal "lift-no-load"
-    ]
-  ]
-
-;================================================== LIFT WITHOUT LOAD PROCESS
-  if (item 1 goal = "lift-no-load") [
-    ifelse (item 0 goal != 0) [
-      set state? "lift-no-load"
-      set goal replace-item 0 goal (item 0 goal - 1)
-  ][
-      set goal replace-item 0 goal t-liftl
-      set goal replace-item 1 goal "lift-load"
-    ]
-  ]
-
-;================================================== LIFT WITH LOAD PROCESS
-  if (item 1 goal = "lift-load") [
-    ifelse (item 0 goal != 0) [
-      set state? "lift-load"
-      set goal replace-item 0 goal (item 0 goal - 1)
-  ][
-      set goal replace-item 0 goal 0
-      set goal replace-item 1 goal "deliver-container" ; deliver now!
-    ]
-  ]
 ;==================================================
   if (item 1 goal = "deliver-container") [
     if (item 2 goal = nobody) [ ;if another cranes just delivered this container
@@ -1091,7 +1031,7 @@ to deliver-container [the-container]
 
     set total-reshuffle total-reshuffle + 1 ; record the reshuffling activities done
     set total-reshuffle-time total-reshuffle-time + ticks-to-rehandle ; record total time to reshuffle
-;    set state? "reshuffle"
+    set state? "reshuffle"
 
     let the-container-column ([ycor] of the-container - ycor) ; the value is 0
     let other-columns remove the-container-column (list -1 -2 -3 -4 -5 -6)
@@ -1104,9 +1044,8 @@ to deliver-container [the-container]
     ask max-one-of (containers-at 0 the-container-column) [z-cor] [
       move-to-position ([ycor] of myself + destination)
     ]
-;to make the moving of each container take 3 steps uncomment the following line
-; if commented, the container reshuffling will be instaneous
-;    set goal (list ticks-to-rehandle "deliver-container" the-container)
+    ;to make the moving of each container take 3 steps uncomment the following line
+    set goal (list ticks-to-rehandle "deliver-container" the-container)
   ]
 end
 
@@ -1207,7 +1146,7 @@ walk-ins
 walk-ins
 0
 1
-0.1
+0.0
 0.01
 1
 NIL
@@ -1578,7 +1517,7 @@ PLOT
 332
 1015
 482
-TTA
+tta
 NIL
 NIL
 0.0
@@ -1598,7 +1537,7 @@ PLOT
 331
 1216
 481
-TTA - appointment
+tta - appointment
 NIL
 NIL
 0.0
@@ -1618,7 +1557,7 @@ PLOT
 331
 1418
 481
-TTA - walk-in
+tta - walk-in
 NIL
 NIL
 0.0
