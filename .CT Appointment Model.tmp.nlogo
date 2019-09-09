@@ -618,7 +618,7 @@ to-report crane-emission-activity
     report crane-trolleynoload-co2
   ]
   if y = "service" [ ; report service emission
-    report crane-liftload-co2
+    report
   ]
 end
 ;;;;;;;;;;;;;
