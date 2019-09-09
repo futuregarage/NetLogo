@@ -10,6 +10,7 @@ clients-own [
   book?
   order
   my-arrival-time
+  overb?
 ]
 
 containers-own [
@@ -81,6 +82,7 @@ globals [
   sessions
   total-app-time
   num-app-serviced
+  current-no-shows
   num-no-shows
   current-interval
   globals-order
@@ -94,6 +96,7 @@ globals [
   total-walkin-st
   total-appointment-qt
   total-walkin-qt
+  total-actual-bookings
 
 ; emission constant, please convert to (gram / second)
   truck-idle-co2
@@ -349,6 +352,7 @@ to do-appointment ; appointments are made in each beginning of sessions
 
     ;function to choose only cargo that is not on stack-list
     let the-cargo one-of containers with [my-truck = nobody and pick-me = false and not member? my-stack stack-list]
+    let chosen-stack [my-stack] of the-cargo
 
     if (the-cargo = nobody) [stop]
     ask the-client [
@@ -363,14 +367,44 @@ to do-appointment ; appointments are made in each beginning of sessions
         set size 1
         ]
       set my-truck nobody
-
       set my-arrival-time (set-arrival-time * x) + ticks
 
       ;update the stack-list
       set stack-list fput [my-stack] of cargo stack-list
-      set x x + 1
     ]
+;=======================================================================
+  ; overbooking model, where for every slot there is probability (p = estimated no shows) to allow new bookings
+    if overbook? = true [
+      let ob-client one-of clients with [cargo = nobody and book? = 0]
+      if (ob-client = nobody) [stop]
+      let ob-cargo one-of containers with [my-truck = nobody and pick-me = false and my-stack = chosen-stack]
+      ifelse random-float 1.0 < no-shows [
+        ask ob-client [
+          set book? true
+          set my-start-time ticks
+          set color green
+          set cargo ob-cargo
+          if (cargo = nobody) [die stop] ; all stacks are full!
+          ask cargo [
+            ; set color appointment
+            set color green
+            set size 1
+          ]
+          set my-truck nobody
+          set my-arrival-time (set-arrival-time * x ) + ticks + 1 ; trucks will arrive 1 sec later
+          set overb? true
+        ]
+        print "overbook occur"
+      ][
+        print "overbook does not occur"
+        ]
+    ]
+    print x
+;=======================================================================
+  set x x + 1
   ]
+  ;recap actual bookings (booking + overbooking)
+  set total-actual-bookings count clients with [overb? = true] + slot-per-session
 end
 
 to do-walk-in ; walk ins are generated each interval (second),
@@ -412,8 +446,15 @@ end
 to appointment-arrival ; procedure for appointment arrival, with a chance of no-show
   let the-client one-of clients with [my-arrival-time = ticks and book? = true and cargo != nobody]
   ifelse the-client != nobody [
-
   ifelse random-float 1.0 < no-shows [
+
+;    ifelse ob-forced-show? = true [ ; force show the overbook
+;        if [overb?] of the-client = true [
+;          create-the-truck the-client
+;        ]
+;      ][
+
+    ; usual no shows
     ask the-client [
       if book? = true [ ; does not count walk in no shows
         set num-no-shows num-no-shows + 1
@@ -425,12 +466,14 @@ to appointment-arrival ; procedure for appointment arrival, with a chance of no-
       ]
       die
     ]
+
   ][
       create-the-truck the-client
   ]
   ][
     stop
   ]
+
 end
 
 ; function to create client's truck
@@ -501,7 +544,7 @@ to-report avg-app-time
   report total-app-time / num-app-serviced
 end
 
-to-report actual-no-show-rate
+to-report actual-no-show-rate; only count normal appointment without overbooking
   let x sessions + 1
   if x < 1 [report 0]
   report num-no-shows / (x * slot-per-session)
@@ -620,6 +663,15 @@ to-report crane-emission-activity
   if y = "service" [ ; report service emission
     report crane-liftload-co2
   ]
+  if y = "reshuffle" [
+    report crane-liftnoload-co2
+  ]
+end
+
+to-report truck-emission-activity
+  let x count trucks
+  if x = nobody [report 0]
+  report x * truck-idle-co2
 end
 ;;;;;;;;;;;;;
 
@@ -930,6 +982,7 @@ end
 ;if the-container has another container on top then the top container is moved to the lowest pile in the stack
 to deliver-container [the-container]
   let pile-height max ([z-cor] of containers-on the-container)
+
   ifelse ([z-cor] of the-container = pile-height) [ ;the-container is at the top
     let the-truck trucks-in-this-stack
     let the-containers-in-stack []
@@ -978,6 +1031,7 @@ to deliver-container [the-container]
 
     set total-reshuffle total-reshuffle + 1 ; record the reshuffling activities done
     set total-reshuffle-time total-reshuffle-time + ticks-to-rehandle ; record total time to reshuffle
+    set state? "reshuffle"
 
     let the-container-column ([ycor] of the-container - ycor) ; the value is 0
     let other-columns remove the-container-column (list -1 -2 -3 -4 -5 -6)
@@ -1077,7 +1131,7 @@ n-demand
 n-demand
 0
 100
-40.0
+50.0
 1
 1
 NIL
@@ -1092,7 +1146,7 @@ walk-ins
 walk-ins
 0
 1
-0.1
+0.0
 0.01
 1
 NIL
@@ -1107,7 +1161,7 @@ no-shows
 no-shows
 0
 1
-0.0
+0.25
 0.01
 1
 NIL
@@ -1160,7 +1214,7 @@ slot-per-session
 slot-per-session
 0
 40
-15.0
+20.0
 1
 1
 NIL
@@ -1260,14 +1314,14 @@ true
 true
 "" ""
 PENS
-"total" 1.0 1 -7500403 true "" "plot count clients"
+"total" 1.0 0 -7500403 true "" "plot count clients"
 "walk-in" 1.0 0 -2674135 true "" "plot count clients with [book? = false]"
 "app" 1.0 0 -10899396 true "" "plot count clients with [book? = true]"
 
 PLOT
-207
+1218
 484
-407
+1418
 634
 waiting trucks
 NIL
@@ -1344,10 +1398,10 @@ PENS
 "default" 1.0 0 -7500403 true "" "plot actual-no-show-rate"
 
 MONITOR
-6
-867
-316
-912
+2
+1015
+312
+1060
 NIL
 count trucks with [member? ycor list 7 7 and cargo = nobody]
 17
@@ -1355,10 +1409,10 @@ count trucks with [member? ycor list 7 7 and cargo = nobody]
 11
 
 MONITOR
-7
-915
-316
-960
+3
+1063
+312
+1108
 NIL
 count clients with [book? = true and cargo = nobody]
 17
@@ -1386,10 +1440,10 @@ PENS
 "app" 1.0 2 -10899396 true "" "plot spillover-app"
 
 MONITOR
-5
-813
-551
-858
+1
+961
+547
+1006
 NIL
 stack-list
 17
@@ -1519,10 +1573,10 @@ PENS
 "service" 1.0 0 -10899396 true "" "plot avg-walkin-st"
 
 PLOT
-3
-638
-203
+5
 788
+205
+938
 truck CO2
 NIL
 NIL
@@ -1538,10 +1592,10 @@ PENS
 "total" 1.0 0 -7500403 true "" "plot total-truck-co2"
 
 PLOT
-205
-638
-405
+207
 788
+407
+938
 crane CO2
 NIL
 NIL
@@ -1556,11 +1610,11 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot total-crane-co2"
 
 PLOT
-943
-31
-1401
-181
-plot 1
+614
+636
+1217
+786
+crane co2 activity
 NIL
 NIL
 0.0
@@ -1572,6 +1626,54 @@ false
 "" ""
 PENS
 "default" 1.0 0 -16777216 true "" "plot crane-emission-activity"
+
+PLOT
+5
+637
+611
+787
+trucks co2 activity
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot truck-emission-activity"
+
+SWITCH
+579
+221
+750
+254
+overbook?
+overbook?
+0
+1
+-1000
+
+PLOT
+207
+483
+407
+633
+overbooking
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"slots" 1.0 0 -7500403 true "" "plot slot-per-session"
+"overbook" 1.0 0 -2674135 true "" "plot total-actual-bookings"
 
 @#$#@#$#@
 ## WHAT IS IT?
