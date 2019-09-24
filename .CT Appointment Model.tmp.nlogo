@@ -10,6 +10,7 @@ clients-own [
   book?
   order
   my-arrival-time
+  overb?
 ]
 
 containers-own [
@@ -30,6 +31,11 @@ cranes-own [
   crane-idle
   crane-service
   state?
+  t-gantry ; ticks needed for current gantry operation saved here
+  t-liftnl ; ticks needed for current lift without load operation saved here
+  t-liftl ; ticks needed for current lift with load operation saved here
+  t-gantry-back ; ticks needed for current gantry operation to the truck
+  gantry-position ; location of the gantry in the row (ycor)
 ]
 
 trucks-own [
@@ -81,6 +87,7 @@ globals [
   sessions
   total-app-time
   num-app-serviced
+  current-no-shows
   num-no-shows
   current-interval
   globals-order
@@ -94,6 +101,21 @@ globals [
   total-walkin-st
   total-appointment-qt
   total-walkin-qt
+  total-actual-bookings
+
+  total-truck-co2-global
+  total-crane-co2-global
+  total-truck-co-global
+  total-crane-co-global
+  total-truck-nox-global
+  total-crane-nox-global
+  total-truck-pm-global
+  total-crane-pm-global
+  total-truck-thc-global
+  total-crane-thc-global
+
+; globals for crane movement
+  ticks-to-lift
 
 ; emission constant, please convert to (gram / second)
   truck-idle-co2
@@ -164,11 +186,11 @@ to go
   if (member? ticks list-session) [
     set sessions sessions + 1
     count-spillover
-    if run? = true [
+;    if run? = true [
       init-container
       init-client
       do-appointment
-    ]
+;    ]
   ]
 
   do-walk-in
@@ -231,6 +253,7 @@ to do-move
 end
 
 to init-globals
+  set ticks-to-lift 15 ; base number of crane lifting procedure
   set ticks-to-rehandle 40 ; number of ticks it takes for crane to move container from one place to another in the same stack.
   set ticks-to-deliver 50 ;number of ticks it takes for crane to move container from stack to truck
   set ticks-to-move 6 ;number of ticks it takes for the crane to move to an adjacent container
@@ -239,51 +262,51 @@ to init-globals
   set crane-road-ycors (list 0 41)
 
 ; emission constants  in g/sec
-  set truck-idle-co2 116
-  set truck-idle-n2o 0.0006
-  set truck-idle-ch4 0.003
-  set truck-idle-pm10 0.0037
-  set truck-idle-pm25 0.0033
-  set truck-idle-dpm 0.0033
-  set truck-idle-nox 1.58
-  set truck-idle-sox 0.0007
-  set truck-idle-co 0.2803
-  set truck-idle-hc 0.104
+set truck-idle-co2 1.28888888888889
+set truck-idle-n2o 1.02777777777778E-05
+set truck-idle-ch4 0.00005
+set truck-idle-pm10 6.11111111111111E-05
+set truck-idle-pm25 5.55555555555556E-05
+set truck-idle-dpm 5.55555555555556E-05
+set truck-idle-nox 0.0263333333333333
+set truck-idle-sox 1.11111111111111E-05
+set truck-idle-co 0.00467222222222222
+set truck-idle-hc 0.00173333333333333
 
-  set crane-idle-co2 73.6833
-  set crane-gantry-co2 12.85
-  set crane-trolleynoload-co2 8.7167
-  set crane-trolleyload-co2 9
-  set crane-liftnoload-co2 16.7667
-  set crane-liftload-co2 26.3167
+set crane-idle-co2 1.22805555555556
+set crane-gantry-co2 0.214166666666667
+set crane-trolleynoload-co2 0.145277777777778
+set crane-trolleyload-co2 0.15
+set crane-liftnoload-co2 0.438611111111111
+set crane-liftload-co2 0.279444444444444
 
-  set crane-idle-co 21.2833
-  set crane-gantry-co 25.8833
-  set crane-trolleynoload-co 23.5
-  set crane-trolleyload-co 24.6167
-  set crane-liftnoload-co 28.2167
-  set crane-liftload-co 50.8333
+set crane-idle-co 0.354722222222222
+set crane-gantry-co 0.431388888888889
+set crane-trolleynoload-co 0.391666666666667
+set crane-trolleyload-co 0.410277777777778
+set crane-liftnoload-co 0.470277777777778
+set crane-liftload-co 0.847222222222222
 
-  set crane-idle-nox 43.5333
-  set crane-gantry-nox 84.1167
-  set crane-trolleynoload-nox 56.2167
-  set crane-trolleyload-nox 59
-  set crane-liftnoload-nox 115.2
-  set crane-liftload-nox 162.6667
+set crane-idle-nox 0.725555555555556
+set crane-gantry-nox 1.40194444444444
+set crane-trolleynoload-nox 0.936944444444444
+set crane-trolleyload-nox 0.983333333333333
+set crane-liftnoload-nox 1.92
+set crane-liftload-nox 2.71111111111111
 
-  set crane-idle-thc 5.5
-  set crane-gantry-thc 7.25
-  set crane-trolleynoload-thc 6.4
-  set crane-trolleyload-thc 6.0833
-  set crane-liftnoload-thc 8.15
-  set crane-liftload-thc 9.7167
+set crane-idle-thc 0.0916666666666667
+set crane-gantry-thc 0.120833333333333
+set crane-trolleynoload-thc 0.106666666666667
+set crane-trolleyload-thc 0.101388888888889
+set crane-liftnoload-thc 0.135833333333333
+set crane-liftload-thc 0.161944444444444
 
-  set crane-idle-pm 3.5667
-  set crane-gantry-pm 4.45
-  set crane-trolleynoload-pm 2.8
-  set crane-trolleyload-pm 3.0833
-  set crane-liftnoload-pm 4.6167
-  set crane-liftload-pm 7.9
+set crane-idle-pm 0.0594444444444444
+set crane-gantry-pm 0.0741666666666667
+set crane-trolleynoload-pm 0.0466666666666667
+set crane-trolleyload-pm 0.0513888888888889
+set crane-liftnoload-pm 0.0769444444444444
+set crane-liftload-pm 0.131666666666667
 end
 
 to init-world
@@ -322,6 +345,7 @@ to init-crane
     set goal []
     set-my-position position-in-yard 0 0 -1
     set state? "idle"
+    set gantry-position 6 ; set default gantry position in 6 ycor)
   ]
 end
 
@@ -349,6 +373,7 @@ to do-appointment ; appointments are made in each beginning of sessions
 
     ;function to choose only cargo that is not on stack-list
     let the-cargo one-of containers with [my-truck = nobody and pick-me = false and not member? my-stack stack-list]
+    let chosen-stack [my-stack] of the-cargo
 
     if (the-cargo = nobody) [stop]
     ask the-client [
@@ -363,14 +388,44 @@ to do-appointment ; appointments are made in each beginning of sessions
         set size 1
         ]
       set my-truck nobody
-
       set my-arrival-time (set-arrival-time * x) + ticks
 
       ;update the stack-list
       set stack-list fput [my-stack] of cargo stack-list
-      set x x + 1
     ]
+;=======================================================================
+  ; overbooking model, where for every slot there is probability (p = estimated no shows) to allow new bookings
+    if overbook? = true [
+      let ob-client one-of clients with [cargo = nobody and book? = 0]
+      if (ob-client = nobody) [stop]
+      let ob-cargo one-of containers with [my-truck = nobody and pick-me = false and my-stack = chosen-stack]
+      ifelse random-float 1.0 < no-shows [
+        ask ob-client [
+          set book? true
+          set my-start-time ticks
+          set color green
+          set cargo ob-cargo
+          if (cargo = nobody) [die stop] ; all stacks are full!
+          ask cargo [
+            ; set color appointment
+            set color green
+            set size 1
+          ]
+          set my-truck nobody
+          set my-arrival-time (set-arrival-time * x ) + ticks + 1 ; trucks will arrive 1 sec later
+          set overb? true
+        ]
+        print "overbook occur"
+      ][
+        print "overbook does not occur"
+        ]
+    ]
+    print x
+;=======================================================================
+  set x x + 1
   ]
+  ;recap actual bookings (booking + overbooking)
+  set total-actual-bookings count clients with [overb? = true] + slot-per-session
 end
 
 to do-walk-in ; walk ins are generated each interval (second),
@@ -412,8 +467,15 @@ end
 to appointment-arrival ; procedure for appointment arrival, with a chance of no-show
   let the-client one-of clients with [my-arrival-time = ticks and book? = true and cargo != nobody]
   ifelse the-client != nobody [
-
   ifelse random-float 1.0 < no-shows [
+
+;    ifelse ob-forced-show? = true [ ; force show the overbook
+;        if [overb?] of the-client = true [
+;          create-the-truck the-client
+;        ]
+;      ][
+
+    ; usual no shows
     ask the-client [
       if book? = true [ ; does not count walk in no shows
         set num-no-shows num-no-shows + 1
@@ -425,12 +487,14 @@ to appointment-arrival ; procedure for appointment arrival, with a chance of no-
       ]
       die
     ]
+
   ][
       create-the-truck the-client
   ]
   ][
     stop
   ]
+
 end
 
 ; function to create client's truck
@@ -501,7 +565,7 @@ to-report avg-app-time
   report total-app-time / num-app-serviced
 end
 
-to-report actual-no-show-rate
+to-report actual-no-show-rate; only count normal appointment without overbooking
   let x sessions + 1
   if x < 1 [report 0]
   report num-no-shows / (x * slot-per-session)
@@ -523,7 +587,7 @@ to-report avg-appointment-wt
   report total-appointment-wt / x
 end
 
-to-report avg-both-wt
+to-report avg-both-ta
   let x num-trucks-serviced
   if x = 0 [report 0]
   report (total-walkin-wt + total-appointment-wt) / x
@@ -569,45 +633,11 @@ to-report avg-both-qt
   report (total-walkin-qt + total-appointment-qt) / x
 end
 
+;;;;;;;;;;;;;;;;;
 ;;;;;;;;; emission reporters, only for single crane problem
-;; crane formula
-;; e idle = crane idle time * constant(idle)
-;; e travel = crane travel distance * ticks to move * constant(trolley no load)
-;; e pickup = total service time * constant(0.25 gantry + 0.5 lift load + 0.25 lift no load)
-;; e reshuffle = total reshuffle time * constant (0.5 gantry + 0.5 lift load)
-;;; total crane emission = e idle + e travel + e pickup + e reshuffle
-;; truck formula
-;; e truck = total wait time * constant(idle)
+;;;;;;;;;;;;;;;;;
 
-to-report total-truck-co2
-  let x num-trucks-serviced
-  if x = 0 [report 0]
-  report total-wait-time * truck-idle-co2
-end
-
-to-report avg-truck-co2
-  let x num-trucks-serviced
-  if x = 0 [report 0]
-  report total-truck-co2 / num-trucks-serviced
-end
-
-to-report total-crane-co2
-  if ticks = 0 [report 0]
-  let the-crane one-of cranes
-  let cidle [crane-idle] of the-crane
-  let ctravel [travel-distance] of the-crane
-  let pickup-constant (0.25 * crane-gantry-co2) + (0.5 * crane-liftload-co2) + (0.25 * crane-liftnoload-co2)
-  let reshuffle-constant (0.5 * crane-gantry-co2) + (0.5 * crane-liftload-co2)
-  let est-idle cidle * crane-idle-co2
-  let est-travel ctravel * ticks-to-move * crane-trolleynoload-co2
-  let est-pickup total-service-time * pickup-constant
-  let est-reshuffle total-reshuffle-time * reshuffle-constant
-  report est-idle + est-travel + est-pickup + est-reshuffle
-end
-
-;;;;;
-
-to-report crane-emission-activity
+to-report crane-emission-activity-co2
   let x one-of cranes
   if x = nobody [report 0]
   let y [state?] of x
@@ -617,9 +647,294 @@ to-report crane-emission-activity
   if y = "travel" [ ; report traveling emission
     report crane-trolleynoload-co2
   ]
-  if y = "service" [ ; report service emission
-    report
+  if y = "reshuffle" [
+    report crane-liftnoload-co2
   ]
+  if y = "gantry" [
+    report crane-gantry-co2
+  ]
+  if y = "lift-load" [
+    report crane-liftload-co2
+  ]
+  if y = "lift-no-load" [
+    report crane-liftnoload-co2
+  ]
+end
+
+to-report total-crane-co2
+  let x ticks
+  if x = 0 [report total-crane-co2-global]
+  let this-tick crane-emission-activity-co2
+  set total-crane-co2-global total-crane-co2-global + this-tick
+  report total-crane-co2-global
+end
+
+to-report truck-emission-activity-co2
+  let x count trucks
+  if x = nobody [report 0]
+  report x * truck-idle-co2
+end
+
+to-report total-truck-co2
+  let x count trucks
+  if x = 0 [report total-truck-co2-global]
+  let this-tick x * truck-idle-co2
+  set total-truck-co2-global total-truck-co2-global + this-tick
+  report total-truck-co2-global
+end
+
+to-report both-co2
+  report total-crane-co2 + total-truck-co2
+end
+
+to-report both-co2-avg
+  let x num-trucks-serviced
+  if x = 0 [report 0]
+  report (total-crane-co2 + total-truck-co2) / x
+end
+
+to-report truck-co2-avg
+  let x num-trucks-serviced
+  if x = 0 [report 0]
+  report total-truck-co2-global / x
+end
+
+to-report crane-co2-avg
+  let x num-trucks-serviced
+  if x = 0 [report 0]
+  report total-crane-co2-global / x
+end
+;;;;;;;;;;;;;;;;;;;;
+
+to-report crane-emission-activity-co
+  let x one-of cranes
+  if x = nobody [report 0]
+  let y [state?] of x
+  if y = "idle" [ ; report idling emission
+    report crane-idle-co
+  ]
+  if y = "travel" [ ; report traveling emission
+    report crane-trolleynoload-co
+  ]
+  if y = "reshuffle" [
+    report crane-liftnoload-co
+  ]
+  if y = "gantry" [
+    report crane-gantry-co
+  ]
+  if y = "lift-load" [
+    report crane-liftload-co
+  ]
+  if y = "lift-no-load" [
+    report crane-liftnoload-co
+  ]
+end
+
+to-report total-crane-co
+  let x ticks
+  if x = 0 [report total-crane-co-global]
+  let this-tick crane-emission-activity-co
+  set total-crane-co-global total-crane-co-global + this-tick
+  report total-crane-co-global
+end
+
+to-report truck-emission-activity-co
+  let x count trucks
+  if x = nobody [report 0]
+  report x * truck-idle-co
+end
+
+to-report total-truck-co
+  let x count trucks
+  if x = 0 [report total-truck-co-global]
+  let this-tick x * truck-idle-co
+  set total-truck-co-global total-truck-co-global + this-tick
+  report total-truck-co-global
+end
+
+to-report both-co
+  report total-crane-co + total-truck-co
+end
+
+;;;;;;;;;;;;;;;;;;;;
+
+to-report crane-emission-activity-nox
+  let x one-of cranes
+  if x = nobody [report 0]
+  let y [state?] of x
+  if y = "idle" [ ; report idling emission
+    report crane-idle-nox
+  ]
+  if y = "travel" [ ; report traveling emission
+    report crane-trolleynoload-nox
+  ]
+  if y = "reshuffle" [
+    report crane-liftnoload-nox
+  ]
+  if y = "gantry" [
+    report crane-gantry-nox
+  ]
+  if y = "lift-load" [
+    report crane-liftload-nox
+  ]
+  if y = "lift-no-load" [
+    report crane-liftnoload-nox
+  ]
+end
+
+to-report total-crane-nox
+  let x ticks
+  if x = 0 [report total-crane-nox-global]
+  let this-tick crane-emission-activity-nox
+  set total-crane-nox-global total-crane-nox-global + this-tick
+  report total-crane-nox-global
+end
+
+to-report truck-emission-activity-nox
+  let x count trucks
+  if x = nobody [report 0]
+  report x * truck-idle-nox
+end
+
+to-report total-truck-nox
+  let x count trucks
+  if x = 0 [report total-truck-nox-global]
+  let this-tick x * truck-idle-nox
+  set total-truck-nox-global total-truck-nox-global + this-tick
+  report total-truck-nox-global
+end
+
+to-report both-nox
+  report total-crane-nox + total-truck-nox
+end
+
+to-report both-nox-avg
+  let x num-trucks-serviced
+  if x = 0 [report 0]
+  report (total-crane-nox + total-truck-nox) / x
+end
+
+to-report truck-nox-avg
+  let x num-trucks-serviced
+  if x = 0 [report 0]
+  report total-truck-nox-global / x
+end
+
+to-report crane-nox-avg
+  let x num-trucks-serviced
+  if x = 0 [report 0]
+  report total-crane-nox-global / x
+end
+
+;;;;;;;;;;;;;;;;;;;;
+
+to-report crane-emission-activity-pm
+  let x one-of cranes
+  if x = nobody [report 0]
+  let y [state?] of x
+  if y = "idle" [ ; report idling emission
+    report crane-idle-pm
+  ]
+  if y = "travel" [ ; report traveling emission
+    report crane-trolleynoload-pm
+  ]
+  if y = "reshuffle" [
+    report crane-liftnoload-pm
+  ]
+  if y = "gantry" [
+    report crane-gantry-pm
+  ]
+  if y = "lift-load" [
+    report crane-liftload-pm
+  ]
+  if y = "lift-no-load" [
+    report crane-liftnoload-pm
+  ]
+end
+
+to-report total-crane-pm
+  let x ticks
+  if x = 0 [report total-crane-pm-global]
+  let this-tick crane-emission-activity-pm
+  set total-crane-pm-global total-crane-pm-global + this-tick
+  report total-crane-pm-global
+end
+
+to-report truck-emission-activity-pm
+  let x count trucks
+  if x = nobody [report 0]
+  report x * truck-idle-dpm
+end
+
+to-report total-truck-pm
+  let x count trucks
+  if x = 0 [report total-truck-pm-global]
+  let this-tick x * truck-idle-dpm
+  set total-truck-pm-global total-truck-pm-global + this-tick
+  report total-truck-pm-global
+end
+
+to-report both-pm
+  report total-crane-pm + total-truck-pm
+end
+
+;;;;;;;;;;;;;;;;;;;;
+
+to-report crane-emission-activity-thc
+  let x one-of cranes
+  if x = nobody [report 0]
+  let y [state?] of x
+  if y = "idle" [ ; report idling emission
+    report crane-idle-thc
+  ]
+  if y = "travel" [ ; report traveling emission
+    report crane-trolleynoload-thc
+  ]
+  if y = "reshuffle" [
+    report crane-liftnoload-thc
+  ]
+  if y = "gantry" [
+    report crane-gantry-thc
+  ]
+  if y = "lift-load" [
+    report crane-liftload-thc
+  ]
+  if y = "lift-no-load" [
+    report crane-liftnoload-thc
+  ]
+end
+
+to-report total-crane-thc
+  let x ticks
+  if x = 0 [report total-crane-thc-global]
+  let this-tick crane-emission-activity-thc
+  set total-crane-thc-global total-crane-thc-global + this-tick
+  report total-crane-thc-global
+end
+
+to-report truck-emission-activity-thc
+  let x count trucks
+  if x = nobody [report 0]
+  report x * truck-idle-hc
+end
+
+to-report total-truck-thc
+  let x count trucks
+  if x = 0 [report total-truck-thc-global]
+  let this-tick x * truck-idle-hc
+  set total-truck-thc-global total-truck-thc-global + this-tick
+  report total-truck-thc-global
+end
+
+to-report both-thc
+  report total-crane-thc + total-truck-thc
+end
+
+;;;;;;;;;;;;;;;;;;;;
+
+to-report queue-length
+  let queue-ycor (list 7 8 9 10 11 12)
+  report count trucks with [member? ycor queue-ycor]
 end
 ;;;;;;;;;;;;;
 
@@ -744,18 +1059,69 @@ to go-crane
     if (item 0 goal-position-xy = xcor and item 1 goal-position-xy = ycor) [;we are at the goal, next time deliver container
       let the-truck trucks-in-this-stack
       set crane-service crane-service + 1
-      set state? "service"
+      set state? "gantry"
+;     set state? "service"
 
     ;;;;;; this only calculate service time when crane arrived in the trucks' stack, resulting a static service time
 ;    ask the-truck [
 ;    set on-service true
 ;    set service-time ticks] ; set on-service on truck true
-    ;;;;;
-      set goal (list ticks-to-deliver "deliver-container" (item 0 [cargo] of the-truck))
+;;;;;;;;
+; USE DEFAULT TICKS TO DELIVER
+;      set goal (list ticks-to-deliver "deliver-container" (item 0 [cargo] of the-truck))
+
+;================================================== DEFINE TICKS
+      ; define ticks needed for picking up container, and save it on the crane
+      let target-container (item 0 [cargo] of the-truck)
+      let target-gantry [ycor] of target-container
+      let ticks-gantry-to-container abs(gantry-position - target-gantry) ; ticks from current position to target row
+      let ticks-gantry-to-truck abs(1 - target-gantry) ; ticks from target row to truck row (1 ycor)
+      let ticks-gantry-total ticks-gantry-to-container + ticks-gantry-to-truck
+
+;      set t-gantry abs (-7 + [ycor] of target-container)
+      set t-gantry ticks-gantry-total
+      set t-liftnl ticks-to-lift + 5 * abs(-4 + [z-cor] of target-container)
+      set t-liftl ticks-to-lift + 5 * abs(-4 + [z-cor] of target-container)
+
+      set goal (list t-gantry "gantry" target-container)
+
     ]
     stop
   ]
 
+;================================================== GANTRY PROCESS
+  if (item 1 goal = "gantry") [
+    ifelse (item 0 goal != 0) [
+      set state? "gantry"
+      set goal replace-item 0 goal (item 0 goal - 1)
+  ][
+      set goal replace-item 0 goal t-liftnl
+      set goal replace-item 1 goal "lift-no-load"
+    ]
+  ]
+
+;================================================== LIFT WITHOUT LOAD PROCESS
+  if (item 1 goal = "lift-no-load") [
+    ifelse (item 0 goal != 0) [
+      set state? "lift-no-load"
+      set goal replace-item 0 goal (item 0 goal - 1)
+  ][
+      set goal replace-item 0 goal t-liftl
+      set goal replace-item 1 goal "lift-load"
+    ]
+  ]
+
+;================================================== LIFT WITH LOAD PROCESS
+  if (item 1 goal = "lift-load") [
+    ifelse (item 0 goal != 0) [
+      set state? "lift-load"
+      set goal replace-item 0 goal (item 0 goal - 1)
+  ][
+      set gantry-position 1 ; set gantry position to where truck is (ycor 1)
+      set goal replace-item 0 goal 0
+      set goal replace-item 1 goal "deliver-container" ; deliver now!
+    ]
+  ]
 ;==================================================
   if (item 1 goal = "deliver-container") [
     if (item 2 goal = nobody) [ ;if another cranes just delivered this container
@@ -930,6 +1296,7 @@ end
 ;if the-container has another container on top then the top container is moved to the lowest pile in the stack
 to deliver-container [the-container]
   let pile-height max ([z-cor] of containers-on the-container)
+
   ifelse ([z-cor] of the-container = pile-height) [ ;the-container is at the top
     let the-truck trucks-in-this-stack
     let the-containers-in-stack []
@@ -978,6 +1345,7 @@ to deliver-container [the-container]
 
     set total-reshuffle total-reshuffle + 1 ; record the reshuffling activities done
     set total-reshuffle-time total-reshuffle-time + ticks-to-rehandle ; record total time to reshuffle
+;    set state? "reshuffle"
 
     let the-container-column ([ycor] of the-container - ycor) ; the value is 0
     let other-columns remove the-container-column (list -1 -2 -3 -4 -5 -6)
@@ -990,8 +1358,9 @@ to deliver-container [the-container]
     ask max-one-of (containers-at 0 the-container-column) [z-cor] [
       move-to-position ([ycor] of myself + destination)
     ]
-    ;to make the moving of each container take 3 steps uncomment the following line
-    set goal (list ticks-to-rehandle "deliver-container" the-container)
+;to make the moving of each container take 3 steps uncomment the following line
+; if commented, the container reshuffling will be instaneous
+;    set goal (list ticks-to-rehandle "deliver-container" the-container)
   ]
 end
 
@@ -1052,10 +1421,10 @@ ticks
 30.0
 
 BUTTON
-9
-271
-72
-304
+936
+17
+1058
+50
 NIL
 setup
 NIL
@@ -1077,34 +1446,19 @@ n-demand
 n-demand
 0
 100
-40.0
+50.0
 1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-579
-138
-751
-171
-walk-ins
-walk-ins
-0
-1
-0.1
-0.01
 1
 NIL
 HORIZONTAL
 
 SLIDER
 578
-179
+122
 750
-212
-no-shows
-no-shows
+155
+walk-ins
+walk-ins
 0
 1
 0.0
@@ -1113,11 +1467,26 @@ no-shows
 NIL
 HORIZONTAL
 
+SLIDER
+577
+158
+749
+191
+no-shows
+no-shows
+0
+1
+0.3
+0.01
+1
+NIL
+HORIZONTAL
+
 SWITCH
-766
-128
-921
-161
+765
+111
+922
+144
 opportunistic?
 opportunistic?
 0
@@ -1126,19 +1495,19 @@ opportunistic?
 
 CHOOSER
 764
-73
+64
 922
-118
+109
 crane-pick-goal-function
 crane-pick-goal-function
 "FIFO" "distance"
 1
 
 BUTTON
-80
-272
-143
-305
+937
+53
+1058
+86
 NIL
 go
 T
@@ -1153,24 +1522,24 @@ NIL
 
 SLIDER
 578
-57
+51
 750
-90
+84
 slot-per-session
 slot-per-session
 0
 40
-15.0
+30.0
 1
 1
 NIL
 HORIZONTAL
 
 PLOT
-815
-485
-1015
-635
+817
+1125
+1017
+1275
 appointment lead time
 NIL
 NIL
@@ -1185,10 +1554,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot avg-app-time"
 
 PLOT
-206
-332
-406
-482
+5
+974
+205
+1124
 average wait time
 NIL
 NIL
@@ -1205,11 +1574,11 @@ PENS
 "walk-in" 1.0 0 -2674135 true "" "plot avg-walkin-wt"
 
 PLOT
-6
-333
-206
-483
-crane utilization
+7
+570
+207
+720
+Crane Utilization
 NIL
 NIL
 0.0
@@ -1222,22 +1591,11 @@ false
 PENS
 "default" 1.0 0 -16777216 true "" "plot crane-utilization"
 
-SWITCH
-163
-274
-253
-307
-run?
-run?
-0
-1
--1000
-
 MONITOR
-274
-270
-330
-315
+1070
+16
+1126
+61
 NIL
 sessions
 17
@@ -1245,10 +1603,10 @@ sessions
 11
 
 PLOT
-613
-485
-813
-635
+615
+1125
+815
+1275
 clients
 NIL
 NIL
@@ -1260,15 +1618,15 @@ true
 true
 "" ""
 PENS
-"total" 1.0 1 -7500403 true "" "plot count clients"
+"total" 1.0 0 -7500403 true "" "plot count clients"
 "walk-in" 1.0 0 -2674135 true "" "plot count clients with [book? = false]"
 "app" 1.0 0 -10899396 true "" "plot count clients with [book? = true]"
 
 PLOT
-207
-484
-407
-634
+612
+975
+812
+1125
 waiting trucks
 NIL
 NIL
@@ -1283,10 +1641,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot count trucks with [waiting = true]"
 
 SLIDER
-579
-99
-751
-132
+578
+86
+750
+119
 interval
 interval
 0
@@ -1298,10 +1656,10 @@ sec
 HORIZONTAL
 
 PLOT
-411
-485
-611
-635
+413
+1125
+613
+1275
 trucks serviced
 NIL
 NIL
@@ -1326,10 +1684,10 @@ sequencing
 1
 
 PLOT
-5
-485
-205
-635
+7
+1125
+207
+1275
 no shows / appointment
 NIL
 NIL
@@ -1344,10 +1702,10 @@ PENS
 "default" 1.0 0 -7500403 true "" "plot actual-no-show-rate"
 
 MONITOR
-6
-867
-316
-912
+4
+1483
+314
+1528
 NIL
 count trucks with [member? ycor list 7 7 and cargo = nobody]
 17
@@ -1355,10 +1713,10 @@ count trucks with [member? ycor list 7 7 and cargo = nobody]
 11
 
 MONITOR
-7
-915
-316
-960
+5
+1531
+314
+1576
 NIL
 count clients with [book? = true and cargo = nobody]
 17
@@ -1366,11 +1724,11 @@ count clients with [book? = true and cargo = nobody]
 11
 
 PLOT
-1017
-484
-1217
-634
-spillover
+410
+570
+610
+720
+Spillover
 NIL
 NIL
 0.0
@@ -1381,15 +1739,15 @@ true
 true
 "" ""
 PENS
-"total" 1.0 1 -7500403 true "" "plot spillover"
+"total" 1.0 0 -7500403 true "" "plot spillover"
 "walk-in" 1.0 2 -2674135 true "" "plot spillover-walkin"
 "app" 1.0 2 -10899396 true "" "plot spillover-app"
 
 MONITOR
-5
-813
-551
-858
+3
+1429
+549
+1474
 NIL
 stack-list
 17
@@ -1397,10 +1755,10 @@ stack-list
 11
 
 MONITOR
-338
-271
-445
-316
+1127
+16
+1234
+61
 appointment clients
 count clients with [book? = true]
 17
@@ -1408,10 +1766,10 @@ count clients with [book? = true]
 11
 
 MONITOR
-452
-272
-541
-317
+1234
+16
+1323
+61
 walk-in clients
 count clients with [book? = false]
 17
@@ -1419,11 +1777,11 @@ count clients with [book? = false]
 11
 
 PLOT
-409
-331
-609
-481
-average service time
+410
+266
+610
+416
+Avg. Service Time
 NIL
 NIL
 0.0
@@ -1439,11 +1797,11 @@ PENS
 "app" 1.0 0 -10899396 true "" "plot avg-appointment-st"
 
 PLOT
-612
-331
-812
-481
-average queue time
+208
+266
+408
+416
+Avg. Wait Time
 NIL
 NIL
 0.0
@@ -1459,11 +1817,11 @@ PENS
 "app" 1.0 0 -10899396 true "" "plot avg-appointment-qt"
 
 PLOT
-815
-332
-1015
-482
-tta
+7
+266
+207
+416
+Avg. Turnaround Time
 NIL
 NIL
 0.0
@@ -1474,16 +1832,16 @@ true
 true
 "" ""
 PENS
-"total" 1.0 0 -7500403 true "" "plot avg-both-wt"
+"total" 1.0 0 -7500403 true "" "plot avg-both-ta"
 "queue" 1.0 0 -2674135 true "" "plot avg-both-qt"
 "service" 1.0 0 -10899396 true "" "plot avg-both-st"
 
 PLOT
-1016
-331
-1216
-481
-tta - appointment
+208
+973
+408
+1123
+TTA - appointment
 NIL
 NIL
 0.0
@@ -1499,11 +1857,11 @@ PENS
 "service" 1.0 0 -10899396 true "" "plot avg-appointment-st"
 
 PLOT
-1218
-331
-1418
-481
-tta - walk-in
+410
+973
+610
+1123
+TTA - walk-in
 NIL
 NIL
 0.0
@@ -1519,11 +1877,11 @@ PENS
 "service" 1.0 0 -10899396 true "" "plot avg-walkin-st"
 
 PLOT
-3
-638
-203
-788
-truck CO2
+211
+1276
+410
+1426
+crane co2 activity
 NIL
 NIL
 0.0
@@ -1534,15 +1892,14 @@ true
 false
 "" ""
 PENS
-"avg" 1.0 0 -16777216 true "" "plot avg-truck-co2"
-"total" 1.0 0 -7500403 true "" "plot total-truck-co2"
+"default" 1.0 0 -16777216 true "" "plot crane-emission-activity-co2"
 
 PLOT
-205
-638
-405
-788
-crane CO2
+4
+1276
+208
+1426
+trucks co2 activity
 NIL
 NIL
 0.0
@@ -1553,13 +1910,172 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot total-crane-co2"
+"default" 1.0 0 -16777216 true "" "plot truck-emission-activity-co2"
+
+SWITCH
+578
+194
+749
+227
+overbook?
+overbook?
+1
+1
+-1000
 
 PLOT
-943
-31
-1401
-181
+209
+1123
+409
+1273
+overbooking
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"slots" 1.0 0 -7500403 true "" "plot slot-per-session"
+"overbook" 1.0 0 -2674135 true "" "plot total-actual-bookings"
+
+PLOT
+209
+570
+409
+720
+Queue Length
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot queue-length"
+
+PLOT
+7
+418
+207
+568
+Total CO2
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+true
+"" ""
+PENS
+"total" 1.0 0 -7500403 true "" "plot both-co2"
+"truck" 1.0 0 -2674135 true "" "plot total-truck-co2"
+"crane" 1.0 0 -10899396 true "" "plot total-crane-co2"
+
+PLOT
+208
+418
+408
+568
+Total CO
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+true
+"" ""
+PENS
+"total" 1.0 0 -7500403 true "" "plot both-co"
+"truck" 1.0 0 -2674135 true "" "plot total-truck-co"
+"crane" 1.0 0 -10899396 true "" "plot total-crane-co"
+
+PLOT
+410
+417
+610
+567
+Total NOx
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+true
+"" ""
+PENS
+"total" 1.0 0 -7500403 true "" "plot both-nox"
+"truck" 1.0 0 -2674135 true "" "plot total-truck-nox"
+"crane" 1.0 0 -10899396 true "" "plot total-crane-nox"
+
+PLOT
+612
+417
+812
+567
+Total PM
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+true
+"" ""
+PENS
+"total" 1.0 0 -7500403 true "" "plot both-pm"
+"truck" 1.0 0 -2674135 true "" "plot total-truck-pm"
+"crane" 1.0 0 -10899396 true "" "plot total-crane-pm"
+
+PLOT
+814
+417
+1014
+567
+Total THC
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+true
+"" ""
+PENS
+"total" 1.0 0 -7500403 true "" "plot both-thc"
+"truck" 1.0 0 -2674135 true "" "plot total-truck-thc"
+"crane" 1.0 0 -10899396 true "" "plot total-crane-thc"
+
+MONITOR
+1018
+240
+1143
+285
+NIL
+num-trucks-serviced
+17
+1
+11
+
+PLOT
+789
+230
+989
+380
 plot 1
 NIL
 NIL
@@ -1571,7 +2087,8 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot crane-emission-activity"
+"default" 1.0 0 -16777216 true "" "plot both-co2-avg"
+"pen-1" 1.0 0 -7500403 true "" "plot both-nox-avg"
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -1919,6 +2436,233 @@ NetLogo 6.0.4
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
+<experiments>
+  <experiment name="pilot" repetitions="1" runMetricsEveryStep="true">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>ticks</metric>
+    <metric>avg-both-ta</metric>
+    <metric>avg-both-qt</metric>
+    <metric>avg-both-st</metric>
+    <metric>crane-utilization</metric>
+    <metric>queue-length</metric>
+    <metric>spillover</metric>
+    <metric>both-co2</metric>
+    <metric>both-co</metric>
+    <metric>both-nox</metric>
+    <metric>both-pm</metric>
+    <metric>both-thc</metric>
+    <enumeratedValueSet variable="sequencing">
+      <value value="&quot;strict-appointment&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="slot-per-session">
+      <value value="15"/>
+      <value value="20"/>
+      <value value="21"/>
+      <value value="22"/>
+      <value value="23"/>
+      <value value="24"/>
+      <value value="25"/>
+      <value value="30"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="walk-ins">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="n-demand">
+      <value value="50"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="no-shows">
+      <value value="0"/>
+      <value value="0.05"/>
+      <value value="0.1"/>
+      <value value="0.15"/>
+      <value value="0.2"/>
+      <value value="0.25"/>
+      <value value="0.3"/>
+      <value value="0.4"/>
+      <value value="0.5"/>
+      <value value="0.6"/>
+      <value value="0.7"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="interval">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="overbook?">
+      <value value="true"/>
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="crane-pick-goal-function">
+      <value value="&quot;distance&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="opportunistic?">
+      <value value="true"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="pilot-2" repetitions="1" runMetricsEveryStep="true">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>ticks</metric>
+    <metric>avg-both-ta</metric>
+    <metric>crane-utilization</metric>
+    <metric>both-co2</metric>
+    <metric>both-co2-avg</metric>
+    <metric>truck-co2-avg</metric>
+    <metric>crane-co2-avg</metric>
+    <metric>num-trucks-serviced</metric>
+    <enumeratedValueSet variable="sequencing">
+      <value value="&quot;strict-appointment&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="slot-per-session">
+      <value value="15"/>
+      <value value="20"/>
+      <value value="25"/>
+      <value value="30"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="walk-ins">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="n-demand">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="no-shows">
+      <value value="0"/>
+      <value value="0.05"/>
+      <value value="0.1"/>
+      <value value="0.15"/>
+      <value value="0.2"/>
+      <value value="0.25"/>
+      <value value="0.3"/>
+      <value value="0.4"/>
+      <value value="0.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="interval">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="overbook?">
+      <value value="true"/>
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="crane-pick-goal-function">
+      <value value="&quot;distance&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="opportunistic?">
+      <value value="true"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="run1" repetitions="10" runMetricsEveryStep="true">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>ticks</metric>
+    <metric>avg-both-ta</metric>
+    <metric>avg-both-qt</metric>
+    <metric>avg-both-st</metric>
+    <metric>crane-utilization</metric>
+    <metric>queue-length</metric>
+    <metric>spillover</metric>
+    <metric>both-co2</metric>
+    <metric>both-co2-avg</metric>
+    <metric>truck-co2-avg</metric>
+    <metric>crane-co2-avg</metric>
+    <metric>both-co</metric>
+    <metric>both-nox</metric>
+    <metric>both-thc</metric>
+    <metric>both-pm</metric>
+    <metric>num-trucks-serviced</metric>
+    <enumeratedValueSet variable="sequencing">
+      <value value="&quot;strict-appointment&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="slot-per-session">
+      <value value="15"/>
+      <value value="20"/>
+      <value value="25"/>
+      <value value="30"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="walk-ins">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="n-demand">
+      <value value="100"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="no-shows">
+      <value value="0"/>
+      <value value="0.05"/>
+      <value value="0.1"/>
+      <value value="0.2"/>
+      <value value="0.4"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="interval">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="overbook?">
+      <value value="true"/>
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="crane-pick-goal-function">
+      <value value="&quot;distance&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="opportunistic?">
+      <value value="true"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="run2" repetitions="10" runMetricsEveryStep="true">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>ticks</metric>
+    <metric>avg-both-ta</metric>
+    <metric>avg-both-qt</metric>
+    <metric>avg-both-st</metric>
+    <metric>crane-utilization</metric>
+    <metric>queue-length</metric>
+    <metric>spillover</metric>
+    <metric>both-co2</metric>
+    <metric>both-co2-avg</metric>
+    <metric>truck-co2-avg</metric>
+    <metric>crane-co2-avg</metric>
+    <metric>both-nox-avg</metric>
+    <metric>truck-nox-avg</metric>
+    <metric>crane-nox-avg</metric>
+    <metric>both-co</metric>
+    <metric>both-nox</metric>
+    <metric>both-thc</metric>
+    <metric>both-pm</metric>
+    <metric>num-trucks-serviced</metric>
+    <enumeratedValueSet variable="sequencing">
+      <value value="&quot;strict-appointment&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="slot-per-session">
+      <value value="5"/>
+      <value value="10"/>
+      <value value="15"/>
+      <value value="20"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="walk-ins">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="n-demand">
+      <value value="100"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="no-shows">
+      <value value="0"/>
+      <value value="0.05"/>
+      <value value="0.1"/>
+      <value value="0.2"/>
+      <value value="0.4"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="interval">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="overbook?">
+      <value value="true"/>
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="crane-pick-goal-function">
+      <value value="&quot;distance&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="opportunistic?">
+      <value value="true"/>
+    </enumeratedValueSet>
+  </experiment>
+</experiments>
 @#$#@#$#@
 @#$#@#$#@
 default

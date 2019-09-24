@@ -262,51 +262,51 @@ to init-globals
   set crane-road-ycors (list 0 41)
 
 ; emission constants  in g/sec
-  set truck-idle-co2 116
-  set truck-idle-n2o 0.0006
-  set truck-idle-ch4 0.003
-  set truck-idle-pm10 0.0037
-  set truck-idle-pm25 0.0033
-  set truck-idle-dpm 0.0033
-  set truck-idle-nox 1.58
-  set truck-idle-sox 0.0007
-  set truck-idle-co 0.2803
-  set truck-idle-hc 0.104
+set truck-idle-co2 1.28888888888889
+set truck-idle-n2o 1.02777777777778E-05
+set truck-idle-ch4 0.00005
+set truck-idle-pm10 6.11111111111111E-05
+set truck-idle-pm25 5.55555555555556E-05
+set truck-idle-dpm 5.55555555555556E-05
+set truck-idle-nox 0.0263333333333333
+set truck-idle-sox 1.11111111111111E-05
+set truck-idle-co 0.00467222222222222
+set truck-idle-hc 0.00173333333333333
 
-  set crane-idle-co2 73.6833
-  set crane-gantry-co2 12.85
-  set crane-trolleynoload-co2 8.7167
-  set crane-trolleyload-co2 9
-  set crane-liftnoload-co2 16.7667
-  set crane-liftload-co2 26.3167
+set crane-idle-co2 1.22805555555556
+set crane-gantry-co2 0.214166666666667
+set crane-trolleynoload-co2 0.145277777777778
+set crane-trolleyload-co2 0.15
+set crane-liftnoload-co2 0.438611111111111
+set crane-liftload-co2 0.279444444444444
 
-  set crane-idle-co 21.2833
-  set crane-gantry-co 25.8833
-  set crane-trolleynoload-co 23.5
-  set crane-trolleyload-co 24.6167
-  set crane-liftnoload-co 28.2167
-  set crane-liftload-co 50.8333
+set crane-idle-co 0.354722222222222
+set crane-gantry-co 0.431388888888889
+set crane-trolleynoload-co 0.391666666666667
+set crane-trolleyload-co 0.410277777777778
+set crane-liftnoload-co 0.470277777777778
+set crane-liftload-co 0.847222222222222
 
-  set crane-idle-nox 43.5333
-  set crane-gantry-nox 84.1167
-  set crane-trolleynoload-nox 56.2167
-  set crane-trolleyload-nox 59
-  set crane-liftnoload-nox 115.2
-  set crane-liftload-nox 162.6667
+set crane-idle-nox 0.725555555555556
+set crane-gantry-nox 1.40194444444444
+set crane-trolleynoload-nox 0.936944444444444
+set crane-trolleyload-nox 0.983333333333333
+set crane-liftnoload-nox 1.92
+set crane-liftload-nox 2.71111111111111
 
-  set crane-idle-thc 5.5
-  set crane-gantry-thc 7.25
-  set crane-trolleynoload-thc 6.4
-  set crane-trolleyload-thc 6.0833
-  set crane-liftnoload-thc 8.15
-  set crane-liftload-thc 9.7167
+set crane-idle-thc 0.0916666666666667
+set crane-gantry-thc 0.120833333333333
+set crane-trolleynoload-thc 0.106666666666667
+set crane-trolleyload-thc 0.101388888888889
+set crane-liftnoload-thc 0.135833333333333
+set crane-liftload-thc 0.161944444444444
 
-  set crane-idle-pm 3.5667
-  set crane-gantry-pm 4.45
-  set crane-trolleynoload-pm 2.8
-  set crane-trolleyload-pm 3.0833
-  set crane-liftnoload-pm 4.6167
-  set crane-liftload-pm 7.9
+set crane-idle-pm 0.0594444444444444
+set crane-gantry-pm 0.0741666666666667
+set crane-trolleynoload-pm 0.0466666666666667
+set crane-trolleyload-pm 0.0513888888888889
+set crane-liftnoload-pm 0.0769444444444444
+set crane-liftload-pm 0.131666666666667
 end
 
 to init-world
@@ -687,6 +687,23 @@ to-report both-co2
   report total-crane-co2 + total-truck-co2
 end
 
+to-report both-co2-avg
+  let x num-trucks-serviced
+  if x = 0 [report 0]
+  report (total-crane-co2 + total-truck-co2) / x
+end
+
+to-report truck-co2-avg
+  let x num-trucks-serviced
+  if x = 0 [report 0]
+  report total-truck-co2-global / x
+end
+
+to-report crane-co2-avg
+  let x num-trucks-serviced
+  if x = 0 [report 0]
+  report total-crane-co2-global / x
+end
 ;;;;;;;;;;;;;;;;;;;;
 
 to-report crane-emission-activity-co
@@ -789,6 +806,24 @@ end
 
 to-report both-nox
   report total-crane-nox + total-truck-nox
+end
+
+to-report both-nox-avg
+  let x num-trucks-serviced
+  if x = 0 [report 0]
+  report (total-crane-nox + total-truck-nox) / x
+end
+
+to-report truck-nox-avg
+  let x num-trucks-serviced
+  if x = 0 [report 0]
+  report total-truck-nox-global / x
+end
+
+to-report crane-nox-avg
+  let x num-trucks-serviced
+  if x = 0 [report 0]
+  report total-crane-nox-global / x
 end
 
 ;;;;;;;;;;;;;;;;;;;;
@@ -1441,7 +1476,7 @@ no-shows
 no-shows
 0
 1
-0.05
+0.3
 0.01
 1
 NIL
@@ -1494,7 +1529,7 @@ slot-per-session
 slot-per-session
 0
 40
-25.0
+30.0
 1
 1
 NIL
@@ -1884,7 +1919,7 @@ SWITCH
 227
 overbook?
 overbook?
-0
+1
 1
 -1000
 
@@ -2024,6 +2059,36 @@ PENS
 "total" 1.0 0 -7500403 true "" "plot both-thc"
 "truck" 1.0 0 -2674135 true "" "plot total-truck-thc"
 "crane" 1.0 0 -10899396 true "" "plot total-crane-thc"
+
+MONITOR
+1018
+240
+1143
+285
+NIL
+num-trucks-serviced
+17
+1
+11
+
+PLOT
+789
+230
+989
+380
+plot 1
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot both-co2-avg"
+"pen-1" 1.0 0 -7500403 true "" "plot both-nox-avg"
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -2418,6 +2483,170 @@ NetLogo 6.0.4
       <value value="0.5"/>
       <value value="0.6"/>
       <value value="0.7"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="interval">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="overbook?">
+      <value value="true"/>
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="crane-pick-goal-function">
+      <value value="&quot;distance&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="opportunistic?">
+      <value value="true"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="pilot-2" repetitions="1" runMetricsEveryStep="true">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>ticks</metric>
+    <metric>avg-both-ta</metric>
+    <metric>crane-utilization</metric>
+    <metric>both-co2</metric>
+    <metric>both-co2-avg</metric>
+    <metric>truck-co2-avg</metric>
+    <metric>crane-co2-avg</metric>
+    <metric>num-trucks-serviced</metric>
+    <enumeratedValueSet variable="sequencing">
+      <value value="&quot;strict-appointment&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="slot-per-session">
+      <value value="15"/>
+      <value value="20"/>
+      <value value="25"/>
+      <value value="30"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="walk-ins">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="n-demand">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="no-shows">
+      <value value="0"/>
+      <value value="0.05"/>
+      <value value="0.1"/>
+      <value value="0.15"/>
+      <value value="0.2"/>
+      <value value="0.25"/>
+      <value value="0.3"/>
+      <value value="0.4"/>
+      <value value="0.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="interval">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="overbook?">
+      <value value="true"/>
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="crane-pick-goal-function">
+      <value value="&quot;distance&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="opportunistic?">
+      <value value="true"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="run1" repetitions="10" runMetricsEveryStep="true">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>ticks</metric>
+    <metric>avg-both-ta</metric>
+    <metric>avg-both-qt</metric>
+    <metric>avg-both-st</metric>
+    <metric>crane-utilization</metric>
+    <metric>queue-length</metric>
+    <metric>spillover</metric>
+    <metric>both-co2</metric>
+    <metric>both-co2-avg</metric>
+    <metric>truck-co2-avg</metric>
+    <metric>crane-co2-avg</metric>
+    <metric>both-co</metric>
+    <metric>both-nox</metric>
+    <metric>both-thc</metric>
+    <metric>both-pm</metric>
+    <metric>num-trucks-serviced</metric>
+    <enumeratedValueSet variable="sequencing">
+      <value value="&quot;strict-appointment&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="slot-per-session">
+      <value value="15"/>
+      <value value="20"/>
+      <value value="25"/>
+      <value value="30"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="walk-ins">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="n-demand">
+      <value value="100"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="no-shows">
+      <value value="0"/>
+      <value value="0.05"/>
+      <value value="0.1"/>
+      <value value="0.2"/>
+      <value value="0.4"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="interval">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="overbook?">
+      <value value="true"/>
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="crane-pick-goal-function">
+      <value value="&quot;distance&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="opportunistic?">
+      <value value="true"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="run2" repetitions="10" runMetricsEveryStep="true">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>ticks</metric>
+    <metric>avg-both-ta</metric>
+    <metric>avg-both-qt</metric>
+    <metric>avg-both-st</metric>
+    <metric>crane-utilization</metric>
+    <metric>queue-length</metric>
+    <metric>spillover</metric>
+    <metric>both-co2</metric>
+    <metric>both-co2-avg</metric>
+    <metric>truck-co2-avg</metric>
+    <metric>crane-co2-avg</metric>
+    <metric>both-nox-avg</metric>
+    <metric>truck-nox-avg</metric>
+    <metric>crane-nox-avg</metric>
+    <metric>both-co</metric>
+    <metric>both-nox</metric>
+    <metric>both-thc</metric>
+    <metric>both-pm</metric>
+    <metric>num-trucks-serviced</metric>
+    <enumeratedValueSet variable="sequencing">
+      <value value="&quot;strict-appointment&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="slot-per-session">
+      <value value="5"/>
+      <value value="10"/>
+      <value value="15"/>
+      <value value="20"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="walk-ins">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="n-demand">
+      <value value="100"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="no-shows">
+      <value value="0"/>
+      <value value="0.05"/>
+      <value value="0.1"/>
+      <value value="0.2"/>
+      <value value="0.4"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="interval">
       <value value="60"/>
