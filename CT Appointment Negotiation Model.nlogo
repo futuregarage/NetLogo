@@ -4,6 +4,7 @@ breed [cranes crane]
 breed [clients client]
 
 clients-own [
+  my-type
   my-truck
   cargo
   my-start-time
@@ -213,7 +214,12 @@ to do-move
   let tlane list 0 0
   let wlane (list 8 9 10 11 12) ; list of ycor that
   let ntruck count trucks with [member? ycor tlane]
-  if ntruck >= slot-per-session [stop] ; set the threshold for trucks allowed inside based on slot per sessions
+
+  ifelse ignore-slot? = true [
+    set ntruck 0 ; do nothing
+    ][
+    if ntruck >= slot-per-session [stop] ; set the threshold for trucks allowed inside based on slot per sessions
+  ]
 
   ; choose the truck to be let inside
   let booked-truck count trucks with [member? ycor wlane and book? = true] ; count trucks in the wait lane (dark grey area)
@@ -253,6 +259,7 @@ to do-move
     goto-container
     stack-slot-check ; check if there is already truck in the destination
   ]
+
 end
 
 to init-globals
@@ -353,12 +360,30 @@ to init-crane
 end
 
 to init-client
-  let n-client count clients
-  let buffer max list 0 (n-demand - n-client)
-  ask n-of buffer patches with [ pycor > 12 and not any? clients-here][
+  ;count current clients, tc means truck company
+  let n-tc-1 count clients with [my-type = 1]
+  let n-tc-2 count clients with [my-type = 2]
+  let n-tc-3 count clients with [my-type = 3]
+
+  ;find the differences, or buffer amount, cannot be negative
+  let tc-1-buffer max list 0 (tc-1 - n-tc-1)
+  let tc-2-buffer max list 0 (tc-2 - n-tc-2)
+  let tc-3-buffer max list 0 (tc-3 - n-tc-3)
+
+  ;create client based on amount defined
+  create-the-client 1 tc-1-buffer
+  create-the-client 2 tc-2-buffer
+  create-the-client 3 tc-3-buffer
+end
+
+to create-the-client [tc-type amount]; function to create clients
+  ask n-of amount patches with [ pycor > 12 and not any? clients-here][
     sprout-clients 1 [
       set shape "person"
-      set color black
+      set my-type tc-type
+      if my-type = 1 [set color 15]
+      if my-type = 2 [set color 25]
+      if my-type = 3 [set color 35]
       set cargo nobody
       set my-truck nobody
       set book? 0 ; as an indicator of a new client
@@ -1048,7 +1073,7 @@ to go-crane
     ifelse (any? trucks with [not waiting])[
       let goalp []
       ;;;;;; =============== crane choice of utility function starts =================
-      if (crane-pick-goal-function = "FIFO") [set goalp pick-goal-position-fcfo]
+      if (crane-pick-goal-function = "FCFS") [set goalp pick-goal-position-fcfo]
       if (crane-pick-goal-function = "distance") [set goalp pick-goal-position-distance]
       ;;;;;;; ================= crane choice of utility function ends =======================
       ifelse (goalp != nobody) [ ; if a valid group and stack values are returned
@@ -1468,7 +1493,7 @@ n-demand
 n-demand
 0
 100
-100.0
+60.0
 1
 1
 NIL
@@ -1483,7 +1508,7 @@ walk-ins
 walk-ins
 0
 1
-0.0
+0.6
 0.01
 1
 NIL
@@ -1498,7 +1523,7 @@ no-shows
 no-shows
 0
 1
-0.4
+0.0
 0.01
 1
 NIL
@@ -1522,8 +1547,8 @@ CHOOSER
 109
 crane-pick-goal-function
 crane-pick-goal-function
-"FIFO" "distance"
-1
+"FCFS" "distance"
+0
 
 BUTTON
 937
@@ -1551,7 +1576,7 @@ slot-per-session
 slot-per-session
 0
 40
-20.0
+5.0
 1
 1
 NIL
@@ -1596,10 +1621,10 @@ PENS
 "walk-in" 1.0 0 -2674135 true "" "plot avg-walkin-wt"
 
 PLOT
-7
-570
-207
-720
+9
+812
+209
+962
 Crane Utilization
 NIL
 NIL
@@ -1703,7 +1728,7 @@ CHOOSER
 sequencing
 sequencing
 "loose-appointment" "strict-appointment" "random"
-1
+0
 
 PLOT
 7
@@ -1746,10 +1771,10 @@ count clients with [book? = true and cargo = nobody]
 11
 
 PLOT
-410
-570
-610
-720
+412
+812
+612
+962
 Spillover
 NIL
 NIL
@@ -1799,10 +1824,10 @@ count clients with [book? = false]
 11
 
 PLOT
-410
-266
-610
-416
+412
+508
+612
+658
 Avg. Service Time
 NIL
 NIL
@@ -1819,10 +1844,10 @@ PENS
 "app" 1.0 0 -10899396 true "" "plot avg-appointment-st"
 
 PLOT
-208
-266
-408
-416
+210
+508
+410
+658
 Avg. Wait Time
 NIL
 NIL
@@ -1839,10 +1864,10 @@ PENS
 "app" 1.0 0 -10899396 true "" "plot avg-appointment-qt"
 
 PLOT
-7
-266
-207
-416
+9
+508
+209
+658
 Avg. Turnaround Time
 NIL
 NIL
@@ -1935,10 +1960,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot truck-emission-activity-co2"
 
 SWITCH
-578
-194
-749
-227
+1149
+436
+1320
+469
 overbook?
 overbook?
 1
@@ -1965,10 +1990,10 @@ PENS
 "overbook" 1.0 0 -2674135 true "" "plot total-actual-bookings"
 
 PLOT
-209
-570
-409
-720
+211
+812
+411
+962
 Queue Length
 NIL
 NIL
@@ -1983,10 +2008,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot queue-length"
 
 PLOT
-7
-418
-207
-568
+9
+660
+209
+810
 Total CO2
 NIL
 NIL
@@ -2003,10 +2028,10 @@ PENS
 "crane" 1.0 0 -10899396 true "" "plot total-crane-co2"
 
 PLOT
-208
-418
-408
-568
+210
+660
+410
+810
 Total CO
 NIL
 NIL
@@ -2023,10 +2048,10 @@ PENS
 "crane" 1.0 0 -10899396 true "" "plot total-crane-co"
 
 PLOT
-410
-417
-610
-567
+412
+659
+612
+809
 Total NOx
 NIL
 NIL
@@ -2043,10 +2068,10 @@ PENS
 "crane" 1.0 0 -10899396 true "" "plot total-crane-nox"
 
 PLOT
-612
-417
-812
-567
+614
+659
+814
+809
 Total PM
 NIL
 NIL
@@ -2063,10 +2088,10 @@ PENS
 "crane" 1.0 0 -10899396 true "" "plot total-crane-pm"
 
 PLOT
-814
-417
-1014
-567
+816
+659
+1016
+809
 Total THC
 NIL
 NIL
@@ -2083,10 +2108,10 @@ PENS
 "crane" 1.0 0 -10899396 true "" "plot total-crane-thc"
 
 MONITOR
-1018
-240
-1143
-285
+1459
+278
+1584
+323
 NIL
 num-trucks-serviced
 17
@@ -2094,10 +2119,10 @@ num-trucks-serviced
 11
 
 PLOT
-789
-230
-989
-380
+1230
+268
+1430
+418
 plot 1
 NIL
 NIL
@@ -2113,10 +2138,10 @@ PENS
 "pen-1" 1.0 0 -7500403 true "" "plot both-nox-avg"
 
 PLOT
-1091
-290
-1291
-440
+1532
+328
+1732
+478
 Trucks Serviced / Session
 NIL
 NIL
@@ -2129,6 +2154,95 @@ false
 "" ""
 PENS
 "default" 1.0 0 -16777216 true "" "plot num-trucks-serviced-session"
+
+MONITOR
+940
+181
+1130
+226
+NIL
+count clients with [my-type = 1]
+17
+1
+11
+
+MONITOR
+941
+230
+1131
+275
+NIL
+count clients with [my-type = 2]
+17
+1
+11
+
+MONITOR
+940
+280
+1130
+325
+NIL
+count clients with [my-type = 3]
+17
+1
+11
+
+SWITCH
+9
+266
+129
+299
+ignore-slot?
+ignore-slot?
+0
+1
+-1000
+
+SLIDER
+8
+306
+128
+339
+tc-1
+tc-1
+0
+30
+15.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+8
+342
+128
+375
+tc-2
+tc-2
+0
+30
+15.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+8
+379
+128
+412
+tc-3
+tc-3
+0
+30
+15.0
+1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?

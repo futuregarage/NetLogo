@@ -1523,7 +1523,7 @@ CHOOSER
 crane-pick-goal-function
 crane-pick-goal-function
 "FIFO" "distance"
-1
+0
 
 BUTTON
 937
@@ -2082,23 +2082,12 @@ PENS
 "truck" 1.0 0 -2674135 true "" "plot total-truck-thc"
 "crane" 1.0 0 -10899396 true "" "plot total-crane-thc"
 
-MONITOR
-1018
-240
-1143
-285
-NIL
-num-trucks-serviced
-17
-1
-11
-
 PLOT
-789
-230
-989
-380
-plot 1
+1015
+418
+1215
+568
+Average Emission / Service
 NIL
 NIL
 0.0
@@ -2106,17 +2095,17 @@ NIL
 0.0
 10.0
 true
-false
+true
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot both-co2-avg"
-"pen-1" 1.0 0 -7500403 true "" "plot both-nox-avg"
+"CO2" 1.0 0 -16777216 true "" "plot both-co2-avg"
+"NOx" 1.0 0 -7500403 true "" "plot both-nox-avg"
 
 PLOT
-1091
-290
-1291
-440
+612
+568
+812
+718
 Trucks Serviced / Session
 NIL
 NIL
@@ -2747,6 +2736,64 @@ NetLogo 6.0.4
     </enumeratedValueSet>
     <enumeratedValueSet variable="crane-pick-goal-function">
       <value value="&quot;distance&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="opportunistic?">
+      <value value="true"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="run3 - fcfs" repetitions="10" runMetricsEveryStep="true">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>ticks</metric>
+    <metric>avg-both-ta</metric>
+    <metric>avg-both-qt</metric>
+    <metric>avg-both-st</metric>
+    <metric>crane-utilization</metric>
+    <metric>queue-length</metric>
+    <metric>spillover</metric>
+    <metric>both-co2-avg</metric>
+    <metric>truck-co2-avg</metric>
+    <metric>crane-co2-avg</metric>
+    <metric>both-nox-avg</metric>
+    <metric>truck-nox-avg</metric>
+    <metric>crane-nox-avg</metric>
+    <metric>both-co-avg</metric>
+    <metric>both-nox-avg</metric>
+    <metric>both-thc-avg</metric>
+    <metric>both-pm-avg</metric>
+    <metric>num-trucks-serviced</metric>
+    <metric>num-trucks-serviced-session</metric>
+    <enumeratedValueSet variable="sequencing">
+      <value value="&quot;strict-appointment&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="slot-per-session">
+      <value value="5"/>
+      <value value="10"/>
+      <value value="15"/>
+      <value value="20"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="walk-ins">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="n-demand">
+      <value value="100"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="no-shows">
+      <value value="0"/>
+      <value value="0.05"/>
+      <value value="0.1"/>
+      <value value="0.2"/>
+      <value value="0.4"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="interval">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="overbook?">
+      <value value="true"/>
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="crane-pick-goal-function">
+      <value value="&quot;FIFO&quot;"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="opportunistic?">
       <value value="true"/>

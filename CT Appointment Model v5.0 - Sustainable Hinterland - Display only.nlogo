@@ -1416,10 +1416,10 @@ to move-to-position [ypos]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-7
-14
-561
-257
+458
+12
+1012
+255
 -1
 -1
 13.0
@@ -1443,10 +1443,10 @@ ticks
 30.0
 
 BUTTON
-936
-17
-1058
-50
+1043
+14
+1216
+48
 NIL
 setup
 NIL
@@ -1460,25 +1460,25 @@ NIL
 1
 
 SLIDER
-578
-16
-750
-49
+225
+14
+420
+48
 n-demand
 n-demand
 0
 100
-100.0
+80.0
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-578
-122
-750
-155
+1568
+388
+1740
+421
 walk-ins
 walk-ins
 0
@@ -1490,25 +1490,25 @@ NIL
 HORIZONTAL
 
 SLIDER
-577
-158
-749
-191
+226
+86
+418
+120
 no-shows
 no-shows
 0
 1
-0.4
+0.2
 0.01
 1
 NIL
 HORIZONTAL
 
 SWITCH
-765
-111
-922
-144
+1565
+252
+1722
+285
 opportunistic?
 opportunistic?
 0
@@ -1516,20 +1516,20 @@ opportunistic?
 -1000
 
 CHOOSER
-764
-64
-922
-109
+227
+157
+417
+203
 crane-pick-goal-function
 crane-pick-goal-function
 "FIFO" "distance"
-1
+0
 
 BUTTON
-937
-53
-1058
-86
+1044
+50
+1216
+84
 NIL
 go
 T
@@ -1543,10 +1543,10 @@ NIL
 1
 
 SLIDER
-578
-51
-750
-84
+225
+49
+419
+83
 slot-per-session
 slot-per-session
 0
@@ -1596,10 +1596,10 @@ PENS
 "walk-in" 1.0 0 -2674135 true "" "plot avg-walkin-wt"
 
 PLOT
-7
-570
-207
-720
+833
+273
+1033
+423
 Crane Utilization
 NIL
 NIL
@@ -1614,10 +1614,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot crane-utilization"
 
 MONITOR
-1070
-16
-1126
-61
+1103
+98
+1159
+143
 NIL
 sessions
 17
@@ -1663,10 +1663,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot count trucks with [waiting = true]"
 
 SLIDER
-578
-86
-750
-119
+1568
+352
+1740
+385
 interval
 interval
 0
@@ -1696,10 +1696,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot num-trucks-serviced"
 
 CHOOSER
-764
-16
-921
-61
+1568
+295
+1725
+340
 sequencing
 sequencing
 "loose-appointment" "strict-appointment" "random"
@@ -1746,10 +1746,10 @@ count clients with [book? = true and cargo = nobody]
 11
 
 PLOT
-410
-570
-610
-720
+205
+677
+405
+827
 Spillover
 NIL
 NIL
@@ -1776,33 +1776,11 @@ stack-list
 1
 11
 
-MONITOR
-1127
-16
-1234
-61
-appointment clients
-count clients with [book? = true]
-17
-1
-11
-
-MONITOR
-1234
-16
-1323
-61
-walk-in clients
-count clients with [book? = false]
-17
-1
-11
-
 PLOT
-410
-266
-610
-416
+632
+273
+832
+423
 Avg. Service Time
 NIL
 NIL
@@ -1811,7 +1789,7 @@ NIL
 0.0
 10.0
 true
-true
+false
 "" ""
 PENS
 "total" 1.0 0 -7500403 true "" "plot avg-both-st"
@@ -1819,10 +1797,10 @@ PENS
 "app" 1.0 0 -10899396 true "" "plot avg-appointment-st"
 
 PLOT
-208
-266
-408
-416
+429
+273
+629
+423
 Avg. Wait Time
 NIL
 NIL
@@ -1831,7 +1809,7 @@ NIL
 0.0
 10.0
 true
-true
+false
 "" ""
 PENS
 "total" 1.0 0 -7500403 true "" "plot avg-both-qt"
@@ -1839,10 +1817,10 @@ PENS
 "app" 1.0 0 -10899396 true "" "plot avg-appointment-qt"
 
 PLOT
-7
-266
-207
-416
+228
+273
+428
+423
 Avg. Turnaround Time
 NIL
 NIL
@@ -1935,13 +1913,13 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot truck-emission-activity-co2"
 
 SWITCH
-578
-194
-749
 227
+122
+417
+156
 overbook?
 overbook?
-1
+0
 1
 -1000
 
@@ -1965,10 +1943,10 @@ PENS
 "overbook" 1.0 0 -2674135 true "" "plot total-actual-bookings"
 
 PLOT
-209
-570
-409
-720
+4
+677
+204
+827
 Queue Length
 NIL
 NIL
@@ -1983,122 +1961,11 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot queue-length"
 
 PLOT
-7
-418
-207
-568
-Total CO2
-NIL
-NIL
-0.0
-10.0
-0.0
-10.0
-true
-true
-"" ""
-PENS
-"total" 1.0 0 -7500403 true "" "plot both-co2"
-"truck" 1.0 0 -2674135 true "" "plot total-truck-co2"
-"crane" 1.0 0 -10899396 true "" "plot total-crane-co2"
-
-PLOT
-208
-418
-408
-568
-Total CO
-NIL
-NIL
-0.0
-10.0
-0.0
-10.0
-true
-true
-"" ""
-PENS
-"total" 1.0 0 -7500403 true "" "plot both-co"
-"truck" 1.0 0 -2674135 true "" "plot total-truck-co"
-"crane" 1.0 0 -10899396 true "" "plot total-crane-co"
-
-PLOT
-410
-417
-610
-567
-Total NOx
-NIL
-NIL
-0.0
-10.0
-0.0
-10.0
-true
-true
-"" ""
-PENS
-"total" 1.0 0 -7500403 true "" "plot both-nox"
-"truck" 1.0 0 -2674135 true "" "plot total-truck-nox"
-"crane" 1.0 0 -10899396 true "" "plot total-crane-nox"
-
-PLOT
-612
-417
-812
-567
-Total PM
-NIL
-NIL
-0.0
-10.0
-0.0
-10.0
-true
-true
-"" ""
-PENS
-"total" 1.0 0 -7500403 true "" "plot both-pm"
-"truck" 1.0 0 -2674135 true "" "plot total-truck-pm"
-"crane" 1.0 0 -10899396 true "" "plot total-crane-pm"
-
-PLOT
-814
-417
-1014
-567
-Total THC
-NIL
-NIL
-0.0
-10.0
-0.0
-10.0
-true
-true
-"" ""
-PENS
-"total" 1.0 0 -7500403 true "" "plot both-thc"
-"truck" 1.0 0 -2674135 true "" "plot total-truck-thc"
-"crane" 1.0 0 -10899396 true "" "plot total-crane-thc"
-
-MONITOR
-1018
-240
-1143
-285
-NIL
-num-trucks-serviced
-17
-1
-11
-
-PLOT
-789
-230
-989
-380
-plot 1
+228
+425
+428
+575
+CO2 / Service
 NIL
 NIL
 0.0
@@ -2109,14 +1976,85 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot both-co2-avg"
-"pen-1" 1.0 0 -7500403 true "" "plot both-nox-avg"
+"total" 1.0 0 -7500403 true "" "plot both-co2-avg"
 
 PLOT
-1091
-290
-1291
-440
+429
+425
+629
+575
+CO / Service
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"total" 1.0 0 -7500403 true "" "plot both-co-avg"
+
+PLOT
+632
+424
+832
+574
+NOx / Service
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"total" 1.0 0 -7500403 true "" "plot both-nox-avg"
+
+PLOT
+834
+424
+1034
+574
+PM / Service
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"total" 1.0 0 -7500403 true "" "plot both-pm-avg"
+
+PLOT
+1035
+424
+1235
+574
+THC / Service
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"total" 1.0 0 -7500403 true "" "plot both-thc-avg"
+
+PLOT
+1034
+273
+1234
+423
 Trucks Serviced / Session
 NIL
 NIL
@@ -2747,6 +2685,64 @@ NetLogo 6.0.4
     </enumeratedValueSet>
     <enumeratedValueSet variable="crane-pick-goal-function">
       <value value="&quot;distance&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="opportunistic?">
+      <value value="true"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="run3 - fcfs" repetitions="10" runMetricsEveryStep="true">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>ticks</metric>
+    <metric>avg-both-ta</metric>
+    <metric>avg-both-qt</metric>
+    <metric>avg-both-st</metric>
+    <metric>crane-utilization</metric>
+    <metric>queue-length</metric>
+    <metric>spillover</metric>
+    <metric>both-co2-avg</metric>
+    <metric>truck-co2-avg</metric>
+    <metric>crane-co2-avg</metric>
+    <metric>both-nox-avg</metric>
+    <metric>truck-nox-avg</metric>
+    <metric>crane-nox-avg</metric>
+    <metric>both-co-avg</metric>
+    <metric>both-nox-avg</metric>
+    <metric>both-thc-avg</metric>
+    <metric>both-pm-avg</metric>
+    <metric>num-trucks-serviced</metric>
+    <metric>num-trucks-serviced-session</metric>
+    <enumeratedValueSet variable="sequencing">
+      <value value="&quot;strict-appointment&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="slot-per-session">
+      <value value="5"/>
+      <value value="10"/>
+      <value value="15"/>
+      <value value="20"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="walk-ins">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="n-demand">
+      <value value="100"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="no-shows">
+      <value value="0"/>
+      <value value="0.05"/>
+      <value value="0.1"/>
+      <value value="0.2"/>
+      <value value="0.4"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="interval">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="overbook?">
+      <value value="true"/>
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="crane-pick-goal-function">
+      <value value="&quot;FIFO&quot;"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="opportunistic?">
       <value value="true"/>
