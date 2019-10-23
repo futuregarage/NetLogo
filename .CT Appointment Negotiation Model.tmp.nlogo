@@ -186,7 +186,7 @@ to setup
   init-world
   init-crane
   init-container
-  init-client
+;  init-client
 end
 
 to go
@@ -378,10 +378,16 @@ to init-crane
 end
 
 to init-client
+  ;uncomment to use buffer mode
   ;count current clients, tc means truck company
-  let n-tc-1 count clients with [my-type = 1]
-  let n-tc-2 count clients with [my-type = 2]
-  let n-tc-3 count clients with [my-type = 3]
+  ;let n-tc-1 count clients with [my-type = 1]
+  ;let n-tc-2 count clients with [my-type = 2]
+  ;let n-tc-3 count clients with [my-type = 3]
+
+  ;uncomment to use fixed truck per hour rate mode
+  let n-tc-1 0
+  let n-tc-2 0
+  let n-tc-3 0
 
   ;find the differences, or buffer amount, cannot be negative
   let tc-1-buffer max list 0 (n-for-each-tc - n-tc-1)
@@ -445,6 +451,11 @@ to do-appointment ; appointments are made in each beginning of sessions
 
       ;update the stack-list
 ;      set stack-list fput [my-stack] of cargo stack-list
+
+  if negotiation? = true [
+        negotiate-function
+    ]
+
     ]
 ;=======================================================================
   ; overbooking model, where for every slot there is probability (p = estimated no shows) to allow new bookings
@@ -475,6 +486,7 @@ to do-appointment ; appointments are made in each beginning of sessions
 ;    ]
 ;    print x
 ;=======================================================================
+
   set x x + 1
   ]
   ;recap actual bookings (booking + overbooking)
@@ -578,6 +590,28 @@ to create-the-truck [the-client]
     ]
 end
 
+to negotiate-function
+  ;calculate time boundaries
+  let lower-bound max list ticks ((item 0 my-bound) + my-preference)
+  let upper-bound min list 36000 ((item 1 my-bound) + my-preference)
+  set my-bound list lower-bound upper-bound
+
+  ;calculate the ideal time to move
+  let new-time avg-both-ta - my-ewt
+
+  ;avoid exceeding the time bound
+  if ticks < 3600 [set new-time 0] ;disregard first tick
+
+  ;move arrival time
+  set my-arrival-time round max list ticks (my-arrival-time + new-time)
+
+  ;avoid exceeding the time bound
+  if my-arrival-time < lower-bound [set my-arrival-time lower-bound]
+  if my-arrival-time > upper-bound [set my-arrival-time upper-bound]
+
+  set color black
+end
+
 to appointment-error-check
   let x count clients with [book? = true and cargo = nobody]
   if x > 0 [
@@ -599,13 +633,31 @@ to count-spillover
 end
 
 to estimate-cost [tc-type] ; cost estimation function in the truck function
-;  let my-est-cost 0
+  ; function to estimate the cost. alpha = constant for waiting time. beta = constant for inconvenience of moving arrival time. negative value is a surplus.
+  set my-est-cost (alpha * (my-wait-time - my-ewt)) + (beta * (abs(my-preference - my-arrival-time)))
   if tc-type = 1 [set tc-1-cost tc-1-cost + my-est-cost]
   if tc-type = 2 [set tc-2-cost tc-2-cost + my-est-cost]
   if tc-type = 3 [set tc-3-cost tc-3-cost + my-est-cost]
 end
 
 ;;;;;;;;;;;; REPORTERS
+
+to-report avg-est-cost-1
+  if num-trucks-serviced = 0 [report 0]
+  report tc-1-cost / num-trucks-serviced
+end
+
+to-report avg-est-cost-2
+  if num-trucks-serviced = 0 [report 0]
+  report tc-2-cost / num-trucks-serviced
+end
+
+to-report avg-est-cost-3
+  if num-trucks-serviced = 0 [report 0]
+  report tc-3-cost / num-trucks-serviced
+end
+
+;;;;;;;;;;;;;
 
 to-report crane-utilization
   if ticks = 0 [report 0]
@@ -1733,7 +1785,7 @@ interval
 interval
 0
 300
-60.0
+61.0
 1
 1
 sec
@@ -2245,7 +2297,7 @@ n-for-each-tc
 n-for-each-tc
 0
 30
-15.0
+9.0
 1
 1
 NIL
@@ -2260,7 +2312,7 @@ trucks-ewt
 trucks-ewt
 1
 3000
-1050.0
+2000.0
 1
 1
 NIL
@@ -2346,7 +2398,7 @@ alpha
 alpha
 1
 10
-1.0
+3.0
 1
 1
 NIL
@@ -2366,6 +2418,26 @@ beta
 1
 NIL
 HORIZONTAL
+
+PLOT
+737
+295
+937
+445
+avg. est. cost
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"pen-1" 1.0 0 -7500403 true "" "plot avg-est-cost-1"
+"pen" 1.0 0 -2674135 true "" "plot avg-est-cost-2"
+"pen-2" 1.0 0 -955883 true "" "plot avg-est-cost-3"
 
 @#$#@#$#@
 ## WHAT IS IT?
