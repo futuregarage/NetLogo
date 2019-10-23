@@ -4,12 +4,20 @@ breed [cranes crane]
 breed [clients client]
 
 clients-own [
+  my-type ; truck client type (1, 2, or 3)
+  my-preference ; my preferred arrival time
+  my-bound ; my time flexibility bound, cannot exceed (+ or -) this value
+  my-ewt ; value of my expected wait time (global ewt * variance)
+  my-wait-time ; actual wait time for this client
+  my-est-cost ; my estimated inconvenience cost, calculated after serviced
+
+  my-arrival-time ; my final arriving time
+
   my-truck
   cargo
   my-start-time
   book?
   order
-  my-arrival-time
   overb?
 ]
 
@@ -102,6 +110,7 @@ globals [
   total-appointment-qt
   total-walkin-qt
   total-actual-bookings
+  num-trucks-serviced-session
 
   total-truck-co2-global
   total-crane-co2-global
@@ -163,6 +172,11 @@ globals [
   crane-trolleyload-pm
   crane-liftnoload-pm
   crane-liftload-pm
+
+  ;inconvinience cost globals
+  tc-1-cost
+  tc-2-cost
+  tc-3-cost
 ]
 
 to setup
@@ -177,7 +191,8 @@ end
 
 to go
   ; check session
-  let list-session (list 0 3600 7200 10800 14400 18000 21600 25200 28800 32400)
+;  let list-session (list 0 3600 7200 10800 14400 18000 21600 25200 28800 32400)
+  let list-session (list 0 3601 7201 10801 14401 18001 21601 25201 28801 32401)
   if ticks >= 36000 [ ; stop after 10 hour
     count-spillover ; count for the last session (tick 36000)
     stop
@@ -186,6 +201,7 @@ to go
   if (member? ticks list-session) [
     set sessions sessions + 1
     count-spillover
+    set num-trucks-serviced-session 0
 ;    if run? = true [
       init-container
       init-client
@@ -210,7 +226,12 @@ to do-move
   let tlane list 0 0
   let wlane (list 8 9 10 11 12) ; list of ycor that
   let ntruck count trucks with [member? ycor tlane]
-  if ntruck >= slot-per-session [stop] ; set the threshold for trucks allowed inside based on slot per sessions
+
+  ifelse ignore-slot? = true [
+    set ntruck 0 ; do nothing
+    ][
+    if ntruck >= slot-per-session [stop] ; set the threshold for trucks allowed inside based on slot per sessions
+  ]
 
   ; choose the truck to be let inside
   let booked-truck count trucks with [member? ycor wlane and book? = true] ; count trucks in the wait lane (dark grey area)
@@ -243,6 +264,12 @@ to do-move
   ]
   ]
 
+  ; sequence 4
+  if sequencing = "free" [
+    set the-truck min-one-of trucks with [waiting = false and my-crane = nobody] [my-arrival-time]
+  ]
+
+
   ; move
   if the-truck = nobody [stop]
   ask the-truck [
@@ -250,6 +277,7 @@ to do-move
     goto-container
     stack-slot-check ; check if there is already truck in the destination
   ]
+
 end
 
 to init-globals
@@ -317,7 +345,7 @@ to init-world
 end
 
 to init-container
-  let amt 500
+  let amt 300
 ;  let n-cont 0
   let n-cont count containers
   let buffer max list 0 (amt - n-cont)
@@ -350,24 +378,49 @@ to init-crane
 end
 
 to init-client
-  let n-client count clients
-  let buffer max list 0 (n-demand - n-client)
-  ask n-of buffer patches with [ pycor > 12 and not any? clients-here][
+  ;count current clients, tc means truck company
+  let n-tc-1 count clients with [my-type = 1]
+  let n-tc-2 count clients with [my-type = 2]
+  let n-tc-3 count clients with [my-type = 3]
+
+  ;find the differences, or buffer amount, cannot be negative
+  let tc-1-buffer max list 0 (n-for-each-tc - n-tc-1)
+  let tc-2-buffer max list 0 (n-for-each-tc - n-tc-2)
+  let tc-3-buffer max list 0 (n-for-each-tc - n-tc-3)
+
+  ;create client based on amount defined
+  create-the-client 1 tc-1-buffer
+  create-the-client 2 tc-2-buffer
+  create-the-client 3 tc-3-buffer
+
+end
+
+to create-the-client [tc-type amount]; function to create clients
+  ask n-of amount patches with [ pycor > 12 and not any? clients-here][
     sprout-clients 1 [
       set shape "person"
-      set color black
+      set my-type tc-type
+      if my-type = 1 [set color 15]
+      if my-type = 2 [set color 25]
+      if my-type = 3 [set color 35]
       set cargo nobody
       set my-truck nobody
       set book? 0 ; as an indicator of a new client
+
+      set my-preference (random 3600) + ticks; my preferred arrival time
+      set my-arrival-time my-preference
+      set my-bound list (-1 * tc-1-bound) (1 * tc-1-bound) ; my time flexibility bound, cannot exceed (+ or -) this value
+      set my-ewt trucks-ewt * ((one-of[1 -1]*(random-float trucks-ewt-variance)) + 1); value of my expected wait time (global ewt * variance)
     ]
   ]
 end
 
 to do-appointment ; appointments are made in each beginning of sessions
   set stack-list [] ; a list of stack that has been booked, reset every new session
-  let set-arrival-time round (3600 / slot-per-session) ; 1 hour per slot per session
+;  let set-arrival-time round (3600 / slot-per-session) ; 1 hour per slot per session
   let x 1
-  repeat slot-per-session [
+  let new-appointment count clients with [book? = 0]
+  repeat new-appointment [
     let the-client one-of clients with [book? = 0]
     if (the-client = nobody) [stop]
 
@@ -379,7 +432,7 @@ to do-appointment ; appointments are made in each beginning of sessions
     ask the-client [
       set book? true
       set my-start-time ticks
-      set color green
+;      set color green
       set cargo the-cargo
       if (cargo = nobody) [die stop] ; all stacks are full!!
       ask cargo [
@@ -388,39 +441,39 @@ to do-appointment ; appointments are made in each beginning of sessions
         set size 1
         ]
       set my-truck nobody
-      set my-arrival-time (set-arrival-time * x) + ticks
+;      set my-arrival-time (set-arrival-time * x) + ticks
 
       ;update the stack-list
-      set stack-list fput [my-stack] of cargo stack-list
+;      set stack-list fput [my-stack] of cargo stack-list
     ]
 ;=======================================================================
   ; overbooking model, where for every slot there is probability (p = estimated no shows) to allow new bookings
-    if overbook? = true [
-      let ob-client one-of clients with [cargo = nobody and book? = 0]
-      if (ob-client = nobody) [stop]
-      let ob-cargo one-of containers with [my-truck = nobody and pick-me = false and my-stack = chosen-stack]
-      ifelse random-float 1.0 < no-shows [
-        ask ob-client [
-          set book? true
-          set my-start-time ticks
-          set color green
-          set cargo ob-cargo
-          if (cargo = nobody) [die stop] ; all stacks are full!
-          ask cargo [
-            ; set color appointment
-            set color green
-            set size 1
-          ]
-          set my-truck nobody
-          set my-arrival-time (set-arrival-time * x ) + ticks + 1 ; trucks will arrive 1 sec later
-          set overb? true
-        ]
-        print "overbook occur"
-      ][
-        print "overbook does not occur"
-        ]
-    ]
-    print x
+;    if overbook? = true [
+;      let ob-client one-of clients with [cargo = nobody and book? = 0]
+;      if (ob-client = nobody) [stop]
+;      let ob-cargo one-of containers with [my-truck = nobody and pick-me = false and my-stack = chosen-stack]
+;      ifelse random-float 1.0 < no-shows [
+;        ask ob-client [
+;          set book? true
+;          set my-start-time ticks
+;          set color green
+;          set cargo ob-cargo
+;          if (cargo = nobody) [die stop] ; all stacks are full!
+;          ask cargo [
+;            ; set color appointment
+;            set color green
+;            set size 1
+;          ]
+;          set my-truck nobody
+;          set my-arrival-time (set-arrival-time * x ) + ticks + 1 ; trucks will arrive 1 sec later
+;          set overb? true
+;        ]
+;        print "overbook occur"
+;      ][
+;        print "overbook does not occur"
+;        ]
+;    ]
+;    print x
 ;=======================================================================
   set x x + 1
   ]
@@ -438,11 +491,11 @@ to do-walk-in ; walk ins are generated each interval (second),
 ;        if (cargo = nobody) [die stop] ; all stacks are full!!
         set book? false
         set my-start-time ticks
-        set color yellow
+;        set color yellow
         set cargo the-cargo
         ask cargo [
           ; set color walk in
-          set color yellow
+;          set color yellow
           set size 1]
         set my-truck nobody
       ]
@@ -454,7 +507,6 @@ to do-walk-in ; walk ins are generated each interval (second),
 end
 
 to do-arrive ;ask a client to create his/her truck
-
   let the-client one-of clients with [cargo != nobody and my-truck = nobody]
   ifelse (the-client = nobody) [stop][
 
@@ -465,7 +517,7 @@ to do-arrive ;ask a client to create his/her truck
 end
 
 to appointment-arrival ; procedure for appointment arrival, with a chance of no-show
-  let the-client one-of clients with [my-arrival-time = ticks and book? = true and cargo != nobody]
+  let the-client one-of clients with [my-arrival-time = ticks and cargo != nobody]
   ifelse the-client != nobody [
   ifelse random-float 1.0 < no-shows [
 
@@ -481,7 +533,7 @@ to appointment-arrival ; procedure for appointment arrival, with a chance of no-
         set num-no-shows num-no-shows + 1
       ]
       ask cargo [
-        set color black
+        set color red
         set size .6
         set my-truck nobody
       ]
@@ -544,6 +596,13 @@ to count-spillover
   set spillover count trucks with [member? ycor list 0 0] ; count trucks that is not serviced from previous session (all)
   set spillover-app count trucks with [member? ycor list 0 0 and book? = true] ; count trucks that is not serviced from previous session (appointment)
   set spillover-walkin spillover - spillover-app ; (walkin)
+end
+
+to estimate-cost [tc-type] ; cost estimation function in the truck function
+;  let my-est-cost 0
+  if tc-type = 1 [set tc-1-cost tc-1-cost + my-est-cost]
+  if tc-type = 2 [set tc-2-cost tc-2-cost + my-est-cost]
+  if tc-type = 3 [set tc-3-cost tc-3-cost + my-est-cost]
 end
 
 ;;;;;;;;;;;; REPORTERS
@@ -756,6 +815,12 @@ to-report both-co
   report total-crane-co + total-truck-co
 end
 
+to-report both-co-avg
+  let x num-trucks-serviced
+  if x = 0 [report 0]
+  report both-co / x
+end
+
 ;;;;;;;;;;;;;;;;;;;;
 
 to-report crane-emission-activity-nox
@@ -878,6 +943,12 @@ to-report both-pm
   report total-crane-pm + total-truck-pm
 end
 
+to-report both-pm-avg
+  let x num-trucks-serviced
+  if x = 0 [report 0]
+  report both-pm / x
+end
+
 ;;;;;;;;;;;;;;;;;;;;
 
 to-report crane-emission-activity-thc
@@ -928,6 +999,12 @@ end
 
 to-report both-thc
   report total-crane-thc + total-truck-thc
+end
+
+to-report both-thc-avg
+  let x num-trucks-serviced
+  if x = 0 [report 0]
+  report both-thc / x
 end
 
 ;;;;;;;;;;;;;;;;;;;;
@@ -1027,7 +1104,7 @@ to go-crane
     ifelse (any? trucks with [not waiting])[
       let goalp []
       ;;;;;; =============== crane choice of utility function starts =================
-      if (crane-pick-goal-function = "FIFO") [set goalp pick-goal-position-fcfo]
+      if (crane-pick-goal-function = "FCFS") [set goalp pick-goal-position-fcfo]
       if (crane-pick-goal-function = "distance") [set goalp pick-goal-position-distance]
       ;;;;;;; ================= crane choice of utility function ends =======================
       ifelse (goalp != nobody) [ ; if a valid group and stack values are returned
@@ -1300,9 +1377,12 @@ to deliver-container [the-container]
   ifelse ([z-cor] of the-container = pile-height) [ ;the-container is at the top
     let the-truck trucks-in-this-stack
     let the-containers-in-stack []
+    let actual-wait-time 0
 
     set num-trucks-serviced num-trucks-serviced + 1
+    set num-trucks-serviced-session num-trucks-serviced-session + 1
     ask the-truck [
+      set actual-wait-time ticks - my-start-time
       set the-containers-in-stack containers-in-stack
       set total-wait-time total-wait-time + (ticks - my-start-time)
       set idle-time idle-time - current-idle ; update the idling time by reducing value of serviced trucks
@@ -1323,6 +1403,10 @@ to deliver-container [the-container]
 
       ask my-client [
         if book? = false [die] ; if it a walk ins then do not count for app time
+
+        set my-wait-time actual-wait-time
+        estimate-cost my-type ; trigger cost estimation
+
         set total-app-time total-app-time + (ticks - my-start-time)
         set num-app-serviced num-app-serviced + 1
         die]
@@ -1421,10 +1505,10 @@ ticks
 30.0
 
 BUTTON
-936
-17
-1058
-50
+572
+15
+694
+48
 NIL
 setup
 NIL
@@ -1438,25 +1522,25 @@ NIL
 1
 
 SLIDER
-578
-16
-750
-49
+1152
+171
+1324
+204
 n-demand
 n-demand
 0
 100
-50.0
+0.0
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-578
-122
-750
-155
+1152
+277
+1324
+310
 walk-ins
 walk-ins
 0
@@ -1468,25 +1552,25 @@ NIL
 HORIZONTAL
 
 SLIDER
-577
-158
-749
-191
+1151
+313
+1323
+346
 no-shows
 no-shows
 0
 1
-0.3
+0.0
 0.01
 1
 NIL
 HORIZONTAL
 
 SWITCH
-765
-111
-922
-144
+573
+187
+730
+220
 opportunistic?
 opportunistic?
 0
@@ -1494,20 +1578,20 @@ opportunistic?
 -1000
 
 CHOOSER
-764
-64
-922
-109
+572
+140
+730
+185
 crane-pick-goal-function
 crane-pick-goal-function
-"FIFO" "distance"
-1
+"FCFS" "distance"
+0
 
 BUTTON
-937
-53
-1058
-86
+573
+51
+694
+84
 NIL
 go
 T
@@ -1521,15 +1605,15 @@ NIL
 1
 
 SLIDER
-578
-51
-750
-84
+1152
+206
+1324
+239
 slot-per-session
 slot-per-session
-0
+1
 40
-30.0
+1.0
 1
 1
 NIL
@@ -1574,10 +1658,10 @@ PENS
 "walk-in" 1.0 0 -2674135 true "" "plot avg-walkin-wt"
 
 PLOT
-7
-570
-207
-720
+9
+812
+209
+962
 Crane Utilization
 NIL
 NIL
@@ -1641,10 +1725,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot count trucks with [waiting = true]"
 
 SLIDER
-578
-86
-750
-119
+1152
+241
+1324
+274
 interval
 interval
 0
@@ -1656,11 +1740,11 @@ sec
 HORIZONTAL
 
 PLOT
-413
-1125
 613
-1275
-trucks serviced
+507
+813
+657
+Trucks Serviced
 NIL
 NIL
 0.0
@@ -1674,14 +1758,14 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot num-trucks-serviced"
 
 CHOOSER
-764
-16
-921
-61
+572
+92
+729
+137
 sequencing
 sequencing
-"loose-appointment" "strict-appointment" "random"
-1
+"loose-appointment" "strict-appointment" "random" "free"
+3
 
 PLOT
 7
@@ -1724,10 +1808,10 @@ count clients with [book? = true and cargo = nobody]
 11
 
 PLOT
-410
-570
-610
-720
+412
+812
+612
+962
 Spillover
 NIL
 NIL
@@ -1777,10 +1861,10 @@ count clients with [book? = false]
 11
 
 PLOT
-410
-266
-610
-416
+412
+508
+612
+658
 Avg. Service Time
 NIL
 NIL
@@ -1797,10 +1881,10 @@ PENS
 "app" 1.0 0 -10899396 true "" "plot avg-appointment-st"
 
 PLOT
-208
-266
-408
-416
+210
+508
+410
+658
 Avg. Wait Time
 NIL
 NIL
@@ -1817,10 +1901,10 @@ PENS
 "app" 1.0 0 -10899396 true "" "plot avg-appointment-qt"
 
 PLOT
-7
-266
-207
-416
+9
+508
+209
+658
 Avg. Turnaround Time
 NIL
 NIL
@@ -1913,10 +1997,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot truck-emission-activity-co2"
 
 SWITCH
-578
-194
-749
-227
+1456
+495
+1627
+528
 overbook?
 overbook?
 1
@@ -1943,10 +2027,10 @@ PENS
 "overbook" 1.0 0 -2674135 true "" "plot total-actual-bookings"
 
 PLOT
-209
-570
-409
-720
+211
+812
+411
+962
 Queue Length
 NIL
 NIL
@@ -1961,10 +2045,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot queue-length"
 
 PLOT
-7
-418
-207
-568
+9
+660
+209
+810
 Total CO2
 NIL
 NIL
@@ -1981,10 +2065,10 @@ PENS
 "crane" 1.0 0 -10899396 true "" "plot total-crane-co2"
 
 PLOT
-208
-418
-408
-568
+210
+660
+410
+810
 Total CO
 NIL
 NIL
@@ -2001,10 +2085,10 @@ PENS
 "crane" 1.0 0 -10899396 true "" "plot total-crane-co"
 
 PLOT
-410
-417
-610
-567
+412
+659
+612
+809
 Total NOx
 NIL
 NIL
@@ -2021,10 +2105,10 @@ PENS
 "crane" 1.0 0 -10899396 true "" "plot total-crane-nox"
 
 PLOT
-612
-417
-812
-567
+614
+659
+814
+809
 Total PM
 NIL
 NIL
@@ -2041,10 +2125,10 @@ PENS
 "crane" 1.0 0 -10899396 true "" "plot total-crane-pm"
 
 PLOT
-814
-417
-1014
-567
+816
+659
+1016
+809
 Total THC
 NIL
 NIL
@@ -2061,10 +2145,10 @@ PENS
 "crane" 1.0 0 -10899396 true "" "plot total-crane-thc"
 
 MONITOR
-1018
-240
-1143
-285
+1459
+278
+1584
+323
 NIL
 num-trucks-serviced
 17
@@ -2072,10 +2156,10 @@ num-trucks-serviced
 11
 
 PLOT
-789
-230
-989
-380
+1458
+330
+1658
+480
 plot 1
 NIL
 NIL
@@ -2089,6 +2173,199 @@ false
 PENS
 "default" 1.0 0 -16777216 true "" "plot both-co2-avg"
 "pen-1" 1.0 0 -7500403 true "" "plot both-nox-avg"
+
+PLOT
+1532
+328
+1732
+478
+Trucks Serviced / Session
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot num-trucks-serviced-session"
+
+MONITOR
+940
+181
+1130
+226
+NIL
+count clients with [my-type = 1]
+17
+1
+11
+
+MONITOR
+941
+230
+1131
+275
+NIL
+count clients with [my-type = 2]
+17
+1
+11
+
+MONITOR
+940
+280
+1130
+325
+NIL
+count clients with [my-type = 3]
+17
+1
+11
+
+SWITCH
+9
+266
+129
+299
+ignore-slot?
+ignore-slot?
+0
+1
+-1000
+
+SLIDER
+8
+303
+128
+336
+n-for-each-tc
+n-for-each-tc
+0
+30
+15.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+258
+267
+409
+300
+trucks-ewt
+trucks-ewt
+1
+3000
+1050.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+258
+303
+409
+336
+trucks-ewt-variance
+trucks-ewt-variance
+0
+0.5
+0.1
+0.01
+1
+NIL
+HORIZONTAL
+
+SLIDER
+131
+303
+254
+336
+tc-1-bound
+tc-1-bound
+0
+3600
+1200.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+131
+338
+254
+371
+tc-2-bound
+tc-2-bound
+0
+3600
+2400.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+131
+374
+255
+407
+tc-3-bound
+tc-3-bound
+0
+3600
+3600.0
+1
+1
+NIL
+HORIZONTAL
+
+SWITCH
+414
+267
+538
+300
+negotiation?
+negotiation?
+1
+1
+-1000
+
+SLIDER
+257
+339
+409
+372
+alpha
+alpha
+1
+10
+1.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+258
+374
+409
+407
+beta
+beta
+1
+10
+1.0
+1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -2660,6 +2937,118 @@ NetLogo 6.0.4
     </enumeratedValueSet>
     <enumeratedValueSet variable="opportunistic?">
       <value value="true"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="run2-emissiontablev3" repetitions="10" runMetricsEveryStep="true">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>ticks</metric>
+    <metric>both-co2-avg</metric>
+    <metric>truck-co2-avg</metric>
+    <metric>crane-co2-avg</metric>
+    <metric>both-nox-avg</metric>
+    <metric>truck-nox-avg</metric>
+    <metric>crane-nox-avg</metric>
+    <metric>both-co-avg</metric>
+    <metric>both-nox-avg</metric>
+    <metric>both-thc-avg</metric>
+    <metric>both-pm-avg</metric>
+    <enumeratedValueSet variable="sequencing">
+      <value value="&quot;strict-appointment&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="slot-per-session">
+      <value value="5"/>
+      <value value="10"/>
+      <value value="15"/>
+      <value value="20"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="walk-ins">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="n-demand">
+      <value value="100"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="no-shows">
+      <value value="0"/>
+      <value value="0.05"/>
+      <value value="0.1"/>
+      <value value="0.2"/>
+      <value value="0.4"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="interval">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="overbook?">
+      <value value="true"/>
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="crane-pick-goal-function">
+      <value value="&quot;distance&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="opportunistic?">
+      <value value="true"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="experiment" repetitions="1" runMetricsEveryStep="true">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>count turtles</metric>
+    <enumeratedValueSet variable="sequencing">
+      <value value="&quot;free&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="negotiation?">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tc-2-bound">
+      <value value="2400"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="no-shows">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="interval">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tc-1">
+      <value value="15"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tc-2">
+      <value value="15"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="trucks-ewt">
+      <value value="600"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="opportunistic?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tc-3">
+      <value value="15"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ignore-slot?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="slot-per-session">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="walk-ins">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tc-3-bound">
+      <value value="3600"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="trucks-ewt-variance">
+      <value value="0.1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="n-demand">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tc-1-bound">
+      <value value="1200"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="overbook?">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="crane-pick-goal-function">
+      <value value="&quot;FCFS&quot;"/>
     </enumeratedValueSet>
   </experiment>
 </experiments>
