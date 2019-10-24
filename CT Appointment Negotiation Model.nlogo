@@ -177,6 +177,10 @@ globals [
   tc-1-cost
   tc-2-cost
   tc-3-cost
+
+  ;turn time estimation globals
+  current-estimation
+  current-ewt
 ]
 
 to setup
@@ -422,12 +426,15 @@ to create-the-client [tc-type amount]; function to create clients
 end
 
 to do-appointment ; appointments are made in each beginning of sessions
+  set current-ewt 0 ; reset current expected wait time
+  set current-estimation avg-both-ta ; reset current estimation in each beginning of sessions
   set stack-list [] ; a list of stack that has been booked, reset every new session
 ;  let set-arrival-time round (3600 / slot-per-session) ; 1 hour per slot per session
   let x 1
   let new-appointment count clients with [book? = 0]
   repeat new-appointment [
-    let the-client one-of clients with [book? = 0]
+    ;let the-client one-of clients with [book? = 0]
+    let the-client min-one-of clients with [book? = 0] [my-preference]
     if (the-client = nobody) [stop]
 
     ;function to choose only cargo that is not on stack-list
@@ -453,7 +460,7 @@ to do-appointment ; appointments are made in each beginning of sessions
 ;      set stack-list fput [my-stack] of cargo stack-list
 
   if negotiation? = true [
-        negotiate-function
+        negotiate-function x
     ]
 
     ]
@@ -590,14 +597,14 @@ to create-the-truck [the-client]
     ]
 end
 
-to negotiate-function
+to negotiate-function [x]
   ;calculate time boundaries
   let lower-bound max list ticks ((item 0 my-bound) + my-preference)
   let upper-bound min list 36000 ((item 1 my-bound) + my-preference)
   set my-bound list lower-bound upper-bound
 
   ;calculate the ideal time to move
-  let new-time avg-both-ta - my-ewt
+  let new-time current-estimation - my-ewt
 
   ;avoid exceeding the time bound
   if ticks < 3600 [set new-time 0] ;disregard first tick
@@ -609,7 +616,11 @@ to negotiate-function
   if my-arrival-time < lower-bound [set my-arrival-time lower-bound]
   if my-arrival-time > upper-bound [set my-arrival-time upper-bound]
 
-  set color black
+  ;update turn time estimation
+  set current-ewt current-ewt + my-ewt
+  set current-estimation (total-appointment-wt + current-ewt) / (num-trucks-serviced + x)
+
+  set color blue
 end
 
 to appointment-error-check
@@ -1559,7 +1570,7 @@ ticks
 BUTTON
 572
 15
-694
+696
 48
 NIL
 setup
@@ -1574,25 +1585,10 @@ NIL
 1
 
 SLIDER
-1152
-171
-1324
-204
-n-demand
-n-demand
-0
-100
-0.0
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-1152
-277
-1324
-310
+1569
+130
+1741
+163
 walk-ins
 walk-ins
 0
@@ -1604,10 +1600,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-1151
-313
-1323
-346
+1568
+166
+1740
+199
 no-shows
 no-shows
 0
@@ -1621,7 +1617,7 @@ HORIZONTAL
 SWITCH
 573
 187
-730
+697
 220
 opportunistic?
 opportunistic?
@@ -1632,7 +1628,7 @@ opportunistic?
 CHOOSER
 572
 140
-730
+697
 185
 crane-pick-goal-function
 crane-pick-goal-function
@@ -1642,7 +1638,7 @@ crane-pick-goal-function
 BUTTON
 573
 51
-694
+696
 84
 NIL
 go
@@ -1657,10 +1653,10 @@ NIL
 1
 
 SLIDER
-1152
-206
-1324
-239
+1569
+59
+1741
+92
 slot-per-session
 slot-per-session
 1
@@ -1672,10 +1668,10 @@ NIL
 HORIZONTAL
 
 PLOT
-817
-1125
-1017
-1275
+815
+1385
+1015
+1535
 appointment lead time
 NIL
 NIL
@@ -1690,10 +1686,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot avg-app-time"
 
 PLOT
-5
-974
-205
-1124
+3
+1234
+203
+1384
 average wait time
 NIL
 NIL
@@ -1710,10 +1706,10 @@ PENS
 "walk-in" 1.0 0 -2674135 true "" "plot avg-walkin-wt"
 
 PLOT
-9
-812
-209
-962
+7
+1072
+207
+1222
 Crane Utilization
 NIL
 NIL
@@ -1728,10 +1724,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot crane-utilization"
 
 MONITOR
-1070
-16
-1126
-61
+1567
+10
+1623
+55
 NIL
 sessions
 17
@@ -1739,10 +1735,10 @@ sessions
 11
 
 PLOT
-615
-1125
-815
-1275
+613
+1385
+813
+1535
 clients
 NIL
 NIL
@@ -1759,10 +1755,10 @@ PENS
 "app" 1.0 0 -10899396 true "" "plot count clients with [book? = true]"
 
 PLOT
-612
-975
-812
-1125
+610
+1235
+810
+1385
 waiting trucks
 NIL
 NIL
@@ -1777,15 +1773,15 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot count trucks with [waiting = true]"
 
 SLIDER
-1152
-241
-1324
-274
+1569
+94
+1741
+127
 interval
 interval
 0
 300
-61.0
+60.0
 1
 1
 sec
@@ -1793,9 +1789,9 @@ HORIZONTAL
 
 PLOT
 613
-507
+266
 813
-657
+416
 Trucks Serviced
 NIL
 NIL
@@ -1812,7 +1808,7 @@ PENS
 CHOOSER
 572
 92
-729
+697
 137
 sequencing
 sequencing
@@ -1820,10 +1816,10 @@ sequencing
 3
 
 PLOT
-7
-1125
-207
-1275
+5
+1385
+205
+1535
 no shows / appointment
 NIL
 NIL
@@ -1838,10 +1834,10 @@ PENS
 "default" 1.0 0 -7500403 true "" "plot actual-no-show-rate"
 
 MONITOR
-4
-1483
-314
-1528
+2
+1743
+312
+1788
 NIL
 count trucks with [member? ycor list 7 7 and cargo = nobody]
 17
@@ -1849,10 +1845,10 @@ count trucks with [member? ycor list 7 7 and cargo = nobody]
 11
 
 MONITOR
-5
-1531
-314
-1576
+3
+1791
+312
+1836
 NIL
 count clients with [book? = true and cargo = nobody]
 17
@@ -1860,10 +1856,10 @@ count clients with [book? = true and cargo = nobody]
 11
 
 PLOT
-412
-812
-612
-962
+410
+1072
+610
+1222
 Spillover
 NIL
 NIL
@@ -1880,10 +1876,10 @@ PENS
 "app" 1.0 2 -10899396 true "" "plot spillover-app"
 
 MONITOR
-3
-1429
-549
-1474
+1
+1689
+547
+1734
 NIL
 stack-list
 17
@@ -1891,10 +1887,10 @@ stack-list
 11
 
 MONITOR
-1127
-16
-1234
-61
+1624
+10
+1731
+55
 appointment clients
 count clients with [book? = true]
 17
@@ -1902,10 +1898,10 @@ count clients with [book? = true]
 11
 
 MONITOR
-1234
-16
-1323
-61
+1731
+10
+1820
+55
 walk-in clients
 count clients with [book? = false]
 17
@@ -1914,9 +1910,9 @@ count clients with [book? = false]
 
 PLOT
 412
-508
+267
 612
-658
+417
 Avg. Service Time
 NIL
 NIL
@@ -1925,7 +1921,7 @@ NIL
 0.0
 10.0
 true
-true
+false
 "" ""
 PENS
 "total" 1.0 0 -7500403 true "" "plot avg-both-st"
@@ -1934,9 +1930,9 @@ PENS
 
 PLOT
 210
-508
+267
 410
-658
+417
 Avg. Wait Time
 NIL
 NIL
@@ -1945,7 +1941,7 @@ NIL
 0.0
 10.0
 true
-true
+false
 "" ""
 PENS
 "total" 1.0 0 -7500403 true "" "plot avg-both-qt"
@@ -1954,10 +1950,10 @@ PENS
 
 PLOT
 9
-508
+267
 209
-658
-Avg. Turnaround Time
+417
+Avg. Truck Turn Time
 NIL
 NIL
 0.0
@@ -1973,10 +1969,10 @@ PENS
 "service" 1.0 0 -10899396 true "" "plot avg-both-st"
 
 PLOT
-208
-973
-408
-1123
+206
+1233
+406
+1383
 TTA - appointment
 NIL
 NIL
@@ -1993,10 +1989,10 @@ PENS
 "service" 1.0 0 -10899396 true "" "plot avg-appointment-st"
 
 PLOT
-410
-973
-610
-1123
+408
+1233
+608
+1383
 TTA - walk-in
 NIL
 NIL
@@ -2013,10 +2009,10 @@ PENS
 "service" 1.0 0 -10899396 true "" "plot avg-walkin-st"
 
 PLOT
-211
-1276
-410
-1426
+209
+1536
+408
+1686
 crane co2 activity
 NIL
 NIL
@@ -2031,10 +2027,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot crane-emission-activity-co2"
 
 PLOT
-4
-1276
-208
-1426
+2
+1536
+206
+1686
 trucks co2 activity
 NIL
 NIL
@@ -2049,9 +2045,9 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot truck-emission-activity-co2"
 
 SWITCH
-1456
+1585
 495
-1627
+1756
 528
 overbook?
 overbook?
@@ -2060,10 +2056,10 @@ overbook?
 -1000
 
 PLOT
-209
-1123
-409
-1273
+207
+1383
+407
+1533
 overbooking
 NIL
 NIL
@@ -2079,10 +2075,10 @@ PENS
 "overbook" 1.0 0 -2674135 true "" "plot total-actual-bookings"
 
 PLOT
-211
-812
-411
-962
+209
+1072
+409
+1222
 Queue Length
 NIL
 NIL
@@ -2097,10 +2093,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot queue-length"
 
 PLOT
-9
-660
-209
-810
+7
+920
+207
+1070
 Total CO2
 NIL
 NIL
@@ -2117,10 +2113,10 @@ PENS
 "crane" 1.0 0 -10899396 true "" "plot total-crane-co2"
 
 PLOT
-210
-660
-410
-810
+208
+920
+408
+1070
 Total CO
 NIL
 NIL
@@ -2137,10 +2133,10 @@ PENS
 "crane" 1.0 0 -10899396 true "" "plot total-crane-co"
 
 PLOT
-412
-659
-612
-809
+410
+919
+610
+1069
 Total NOx
 NIL
 NIL
@@ -2157,10 +2153,10 @@ PENS
 "crane" 1.0 0 -10899396 true "" "plot total-crane-nox"
 
 PLOT
-614
-659
-814
-809
+612
+919
+812
+1069
 Total PM
 NIL
 NIL
@@ -2177,10 +2173,10 @@ PENS
 "crane" 1.0 0 -10899396 true "" "plot total-crane-pm"
 
 PLOT
-816
-659
-1016
-809
+814
+919
+1014
+1069
 Total THC
 NIL
 NIL
@@ -2197,9 +2193,9 @@ PENS
 "crane" 1.0 0 -10899396 true "" "plot total-crane-thc"
 
 MONITOR
-1459
+1588
 278
-1584
+1713
 323
 NIL
 num-trucks-serviced
@@ -2208,9 +2204,9 @@ num-trucks-serviced
 11
 
 PLOT
-1458
+1587
 330
-1658
+1787
 480
 plot 1
 NIL
@@ -2227,9 +2223,9 @@ PENS
 "pen-1" 1.0 0 -7500403 true "" "plot both-nox-avg"
 
 PLOT
-1532
+1661
 328
-1732
+1861
 478
 Trucks Serviced / Session
 NIL
@@ -2245,10 +2241,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot num-trucks-serviced-session"
 
 MONITOR
-940
-181
-1130
-226
+1371
+11
+1561
+56
 NIL
 count clients with [my-type = 1]
 17
@@ -2256,10 +2252,10 @@ count clients with [my-type = 1]
 11
 
 MONITOR
-941
-230
-1131
-275
+1372
+60
+1562
+105
 NIL
 count clients with [my-type = 2]
 17
@@ -2267,10 +2263,10 @@ count clients with [my-type = 2]
 11
 
 MONITOR
-940
-280
-1130
-325
+1371
+110
+1561
+155
 NIL
 count clients with [my-type = 3]
 17
@@ -2278,10 +2274,10 @@ count clients with [my-type = 3]
 11
 
 SWITCH
-9
-266
-129
-299
+704
+15
+824
+48
 ignore-slot?
 ignore-slot?
 0
@@ -2289,10 +2285,10 @@ ignore-slot?
 -1000
 
 SLIDER
-8
-303
-128
-336
+703
+52
+823
+85
 n-for-each-tc
 n-for-each-tc
 0
@@ -2304,25 +2300,25 @@ NIL
 HORIZONTAL
 
 SLIDER
-258
-267
-409
-300
+953
+16
+1104
+49
 trucks-ewt
 trucks-ewt
 1
 3000
-1611.0
+600.0
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-258
-303
-409
-336
+953
+52
+1104
+85
 trucks-ewt-variance
 trucks-ewt-variance
 0
@@ -2334,10 +2330,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-131
-303
-254
-336
+826
+52
+949
+85
 tc-1-bound
 tc-1-bound
 0
@@ -2349,10 +2345,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-131
-338
-254
-371
+826
+87
+949
+120
 tc-2-bound
 tc-2-bound
 0
@@ -2364,10 +2360,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-131
-374
-255
-407
+826
+123
+950
+156
 tc-3-bound
 tc-3-bound
 0
@@ -2379,10 +2375,10 @@ NIL
 HORIZONTAL
 
 SWITCH
-414
-267
-538
-300
+826
+16
+950
+49
 negotiation?
 negotiation?
 0
@@ -2390,27 +2386,12 @@ negotiation?
 -1000
 
 SLIDER
-257
-339
-409
-372
+952
+88
+1104
+121
 alpha
 alpha
-1
-10
-5.0
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-258
-374
-409
-407
-beta
-beta
 1
 10
 3.0
@@ -2419,12 +2400,27 @@ beta
 NIL
 HORIZONTAL
 
+SLIDER
+953
+123
+1104
+156
+beta
+beta
+1
+10
+1.0
+1
+1
+NIL
+HORIZONTAL
+
 PLOT
-737
-295
-937
-445
-avg. est. cost
+814
+266
+1014
+416
+Avg. Estimated Cost
 NIL
 NIL
 0.0
@@ -2432,12 +2428,31 @@ NIL
 0.0
 10.0
 true
-false
+true
 "" ""
 PENS
-"pen-1" 1.0 0 -7500403 true "" "plot avg-est-cost-1"
-"pen" 1.0 0 -2674135 true "" "plot avg-est-cost-2"
-"pen-2" 1.0 0 -955883 true "" "plot avg-est-cost-3"
+"tc-1" 1.0 0 -10899396 true "" "plot avg-est-cost-1"
+"tc-2" 1.0 0 -2674135 true "" "plot avg-est-cost-2"
+"tc-3" 1.0 0 -13345367 true "" "plot avg-est-cost-3"
+
+PLOT
+1016
+266
+1217
+417
+Prediction
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+true
+"" ""
+PENS
+"est" 1.0 0 -2674135 true "" "plot current-estimation"
+"act" 1.0 0 -7500403 true "" "plot avg-both-ta"
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -3112,6 +3127,70 @@ NetLogo 6.0.4
     </enumeratedValueSet>
     <enumeratedValueSet variable="n-demand">
       <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tc-1-bound">
+      <value value="1200"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="overbook?">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="crane-pick-goal-function">
+      <value value="&quot;FCFS&quot;"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="negotiation-pilot-1" repetitions="30" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>avg-both-ta</metric>
+    <metric>avg-both-st</metric>
+    <metric>avg-both-qt</metric>
+    <metric>num-trucks-serviced</metric>
+    <enumeratedValueSet variable="sequencing">
+      <value value="&quot;free&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="negotiation?">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="alpha">
+      <value value="3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tc-2-bound">
+      <value value="2400"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="beta">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="no-shows">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="interval">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="opportunistic?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="n-for-each-tc">
+      <value value="5"/>
+      <value value="7"/>
+      <value value="9"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="trucks-ewt">
+      <value value="600"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ignore-slot?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="trucks-ewt-variance">
+      <value value="0.1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="slot-per-session">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="walk-ins">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tc-3-bound">
+      <value value="3600"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="tc-1-bound">
       <value value="1200"/>
