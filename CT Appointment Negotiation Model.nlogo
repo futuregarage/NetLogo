@@ -178,6 +178,10 @@ globals [
   tc-2-cost
   tc-3-cost
 
+  tc-1-serviced
+  tc-2-serviced
+  tc-3-serviced
+
   ;turn time estimation globals
   current-estimation
   current-ewt
@@ -420,7 +424,7 @@ to create-the-client [tc-type amount]; function to create clients
       set my-preference (random 3600) + ticks; my preferred arrival time
       set my-arrival-time my-preference
       set my-bound list (-1 * tc-1-bound) (1 * tc-1-bound) ; my time flexibility bound, cannot exceed (+ or -) this value
-      set my-ewt trucks-ewt * ((one-of[1 -1]*(random-float trucks-ewt-variance)) + 1); value of my expected wait time (global ewt * variance)
+      ;set my-ewt trucks-ewt * ((one-of[1 -1]*(random-float trucks-ewt-variance)) + 1); value of my expected wait time (global ewt * variance)
     ]
   ]
 end
@@ -443,6 +447,9 @@ to do-appointment ; appointments are made in each beginning of sessions
 
     if (the-cargo = nobody) [stop]
     ask the-client [
+
+      set my-ewt avg-both-ta * ((one-of[1 -1]*(random-float trucks-ewt-variance)) + 1); value of my expected wait time (global ewt * variance)
+
       set book? true
       set my-start-time ticks
 ;      set color green
@@ -654,18 +661,23 @@ end
 ;;;;;;;;;;;; REPORTERS
 
 to-report avg-est-cost-1
-  if num-trucks-serviced = 0 [report 0]
-  report tc-1-cost / num-trucks-serviced
+  if tc-1-serviced = 0 [report 0]
+  report tc-1-cost / tc-1-serviced
 end
 
 to-report avg-est-cost-2
-  if num-trucks-serviced = 0 [report 0]
-  report tc-2-cost / num-trucks-serviced
+  if tc-2-serviced = 0 [report 0]
+  report tc-2-cost / tc-2-serviced
 end
 
 to-report avg-est-cost-3
+  if tc-3-serviced = 0 [report 0]
+  report tc-3-cost / tc-3-serviced
+end
+
+to-report avg-est-cost-all
   if num-trucks-serviced = 0 [report 0]
-  report tc-3-cost / num-trucks-serviced
+  report (tc-1-cost + tc-2-cost + tc-3-cost) / num-trucks-serviced
 end
 
 ;;;;;;;;;;;;;
@@ -1472,6 +1484,11 @@ to deliver-container [the-container]
 
         set total-app-time total-app-time + (ticks - my-start-time)
         set num-app-serviced num-app-serviced + 1
+
+        if my-type = 1 [set tc-1-serviced tc-1-serviced + 1]
+        if my-type = 2 [set tc-2-serviced tc-2-serviced + 1]
+        if my-type = 3 [set tc-3-serviced tc-3-serviced + 1]
+
         die]
       die]
 
@@ -2293,7 +2310,7 @@ n-for-each-tc
 n-for-each-tc
 0
 30
-9.0
+8.0
 1
 1
 NIL
@@ -2308,7 +2325,7 @@ trucks-ewt
 trucks-ewt
 1
 3000
-600.0
+2716.0
 1
 1
 NIL
@@ -2323,7 +2340,7 @@ trucks-ewt-variance
 trucks-ewt-variance
 0
 0.5
-0.1
+0.5
 0.01
 1
 NIL
@@ -2338,7 +2355,7 @@ tc-1-bound
 tc-1-bound
 0
 3600
-1200.0
+600.0
 1
 1
 NIL
@@ -2353,7 +2370,7 @@ tc-2-bound
 tc-2-bound
 0
 3600
-2400.0
+1200.0
 1
 1
 NIL
@@ -2368,7 +2385,7 @@ tc-3-bound
 tc-3-bound
 0
 3600
-3600.0
+1800.0
 1
 1
 NIL
@@ -2434,6 +2451,7 @@ PENS
 "tc-1" 1.0 0 -10899396 true "" "plot avg-est-cost-1"
 "tc-2" 1.0 0 -2674135 true "" "plot avg-est-cost-2"
 "tc-3" 1.0 0 -13345367 true "" "plot avg-est-cost-3"
+"all" 1.0 0 -7500403 true "" "plot avg-est-cost-all"
 
 PLOT
 1016
@@ -2801,343 +2819,6 @@ NetLogo 6.0.4
 @#$#@#$#@
 @#$#@#$#@
 <experiments>
-  <experiment name="pilot" repetitions="1" runMetricsEveryStep="true">
-    <setup>setup</setup>
-    <go>go</go>
-    <metric>ticks</metric>
-    <metric>avg-both-ta</metric>
-    <metric>avg-both-qt</metric>
-    <metric>avg-both-st</metric>
-    <metric>crane-utilization</metric>
-    <metric>queue-length</metric>
-    <metric>spillover</metric>
-    <metric>both-co2</metric>
-    <metric>both-co</metric>
-    <metric>both-nox</metric>
-    <metric>both-pm</metric>
-    <metric>both-thc</metric>
-    <enumeratedValueSet variable="sequencing">
-      <value value="&quot;strict-appointment&quot;"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="slot-per-session">
-      <value value="15"/>
-      <value value="20"/>
-      <value value="21"/>
-      <value value="22"/>
-      <value value="23"/>
-      <value value="24"/>
-      <value value="25"/>
-      <value value="30"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="walk-ins">
-      <value value="0"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="n-demand">
-      <value value="50"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="no-shows">
-      <value value="0"/>
-      <value value="0.05"/>
-      <value value="0.1"/>
-      <value value="0.15"/>
-      <value value="0.2"/>
-      <value value="0.25"/>
-      <value value="0.3"/>
-      <value value="0.4"/>
-      <value value="0.5"/>
-      <value value="0.6"/>
-      <value value="0.7"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="interval">
-      <value value="60"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="overbook?">
-      <value value="true"/>
-      <value value="false"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="crane-pick-goal-function">
-      <value value="&quot;distance&quot;"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="opportunistic?">
-      <value value="true"/>
-    </enumeratedValueSet>
-  </experiment>
-  <experiment name="pilot-2" repetitions="1" runMetricsEveryStep="true">
-    <setup>setup</setup>
-    <go>go</go>
-    <metric>ticks</metric>
-    <metric>avg-both-ta</metric>
-    <metric>crane-utilization</metric>
-    <metric>both-co2</metric>
-    <metric>both-co2-avg</metric>
-    <metric>truck-co2-avg</metric>
-    <metric>crane-co2-avg</metric>
-    <metric>num-trucks-serviced</metric>
-    <enumeratedValueSet variable="sequencing">
-      <value value="&quot;strict-appointment&quot;"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="slot-per-session">
-      <value value="15"/>
-      <value value="20"/>
-      <value value="25"/>
-      <value value="30"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="walk-ins">
-      <value value="0"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="n-demand">
-      <value value="60"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="no-shows">
-      <value value="0"/>
-      <value value="0.05"/>
-      <value value="0.1"/>
-      <value value="0.15"/>
-      <value value="0.2"/>
-      <value value="0.25"/>
-      <value value="0.3"/>
-      <value value="0.4"/>
-      <value value="0.5"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="interval">
-      <value value="60"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="overbook?">
-      <value value="true"/>
-      <value value="false"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="crane-pick-goal-function">
-      <value value="&quot;distance&quot;"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="opportunistic?">
-      <value value="true"/>
-    </enumeratedValueSet>
-  </experiment>
-  <experiment name="run1" repetitions="10" runMetricsEveryStep="true">
-    <setup>setup</setup>
-    <go>go</go>
-    <metric>ticks</metric>
-    <metric>avg-both-ta</metric>
-    <metric>avg-both-qt</metric>
-    <metric>avg-both-st</metric>
-    <metric>crane-utilization</metric>
-    <metric>queue-length</metric>
-    <metric>spillover</metric>
-    <metric>both-co2</metric>
-    <metric>both-co2-avg</metric>
-    <metric>truck-co2-avg</metric>
-    <metric>crane-co2-avg</metric>
-    <metric>both-co</metric>
-    <metric>both-nox</metric>
-    <metric>both-thc</metric>
-    <metric>both-pm</metric>
-    <metric>num-trucks-serviced</metric>
-    <enumeratedValueSet variable="sequencing">
-      <value value="&quot;strict-appointment&quot;"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="slot-per-session">
-      <value value="15"/>
-      <value value="20"/>
-      <value value="25"/>
-      <value value="30"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="walk-ins">
-      <value value="0"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="n-demand">
-      <value value="100"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="no-shows">
-      <value value="0"/>
-      <value value="0.05"/>
-      <value value="0.1"/>
-      <value value="0.2"/>
-      <value value="0.4"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="interval">
-      <value value="60"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="overbook?">
-      <value value="true"/>
-      <value value="false"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="crane-pick-goal-function">
-      <value value="&quot;distance&quot;"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="opportunistic?">
-      <value value="true"/>
-    </enumeratedValueSet>
-  </experiment>
-  <experiment name="run2" repetitions="10" runMetricsEveryStep="true">
-    <setup>setup</setup>
-    <go>go</go>
-    <metric>ticks</metric>
-    <metric>avg-both-ta</metric>
-    <metric>avg-both-qt</metric>
-    <metric>avg-both-st</metric>
-    <metric>crane-utilization</metric>
-    <metric>queue-length</metric>
-    <metric>spillover</metric>
-    <metric>both-co2</metric>
-    <metric>both-co2-avg</metric>
-    <metric>truck-co2-avg</metric>
-    <metric>crane-co2-avg</metric>
-    <metric>both-nox-avg</metric>
-    <metric>truck-nox-avg</metric>
-    <metric>crane-nox-avg</metric>
-    <metric>both-co</metric>
-    <metric>both-nox</metric>
-    <metric>both-thc</metric>
-    <metric>both-pm</metric>
-    <metric>num-trucks-serviced</metric>
-    <enumeratedValueSet variable="sequencing">
-      <value value="&quot;strict-appointment&quot;"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="slot-per-session">
-      <value value="5"/>
-      <value value="10"/>
-      <value value="15"/>
-      <value value="20"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="walk-ins">
-      <value value="0"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="n-demand">
-      <value value="100"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="no-shows">
-      <value value="0"/>
-      <value value="0.05"/>
-      <value value="0.1"/>
-      <value value="0.2"/>
-      <value value="0.4"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="interval">
-      <value value="60"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="overbook?">
-      <value value="true"/>
-      <value value="false"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="crane-pick-goal-function">
-      <value value="&quot;distance&quot;"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="opportunistic?">
-      <value value="true"/>
-    </enumeratedValueSet>
-  </experiment>
-  <experiment name="run2-emissiontablev3" repetitions="10" runMetricsEveryStep="true">
-    <setup>setup</setup>
-    <go>go</go>
-    <metric>ticks</metric>
-    <metric>both-co2-avg</metric>
-    <metric>truck-co2-avg</metric>
-    <metric>crane-co2-avg</metric>
-    <metric>both-nox-avg</metric>
-    <metric>truck-nox-avg</metric>
-    <metric>crane-nox-avg</metric>
-    <metric>both-co-avg</metric>
-    <metric>both-nox-avg</metric>
-    <metric>both-thc-avg</metric>
-    <metric>both-pm-avg</metric>
-    <enumeratedValueSet variable="sequencing">
-      <value value="&quot;strict-appointment&quot;"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="slot-per-session">
-      <value value="5"/>
-      <value value="10"/>
-      <value value="15"/>
-      <value value="20"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="walk-ins">
-      <value value="0"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="n-demand">
-      <value value="100"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="no-shows">
-      <value value="0"/>
-      <value value="0.05"/>
-      <value value="0.1"/>
-      <value value="0.2"/>
-      <value value="0.4"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="interval">
-      <value value="60"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="overbook?">
-      <value value="true"/>
-      <value value="false"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="crane-pick-goal-function">
-      <value value="&quot;distance&quot;"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="opportunistic?">
-      <value value="true"/>
-    </enumeratedValueSet>
-  </experiment>
-  <experiment name="experiment" repetitions="1" runMetricsEveryStep="true">
-    <setup>setup</setup>
-    <go>go</go>
-    <metric>count turtles</metric>
-    <enumeratedValueSet variable="sequencing">
-      <value value="&quot;free&quot;"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="negotiation?">
-      <value value="false"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="tc-2-bound">
-      <value value="2400"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="no-shows">
-      <value value="0"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="interval">
-      <value value="60"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="tc-1">
-      <value value="15"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="tc-2">
-      <value value="15"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="trucks-ewt">
-      <value value="600"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="opportunistic?">
-      <value value="true"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="tc-3">
-      <value value="15"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="ignore-slot?">
-      <value value="true"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="slot-per-session">
-      <value value="1"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="walk-ins">
-      <value value="0"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="tc-3-bound">
-      <value value="3600"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="trucks-ewt-variance">
-      <value value="0.1"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="n-demand">
-      <value value="0"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="tc-1-bound">
-      <value value="1200"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="overbook?">
-      <value value="false"/>
-    </enumeratedValueSet>
-    <enumeratedValueSet variable="crane-pick-goal-function">
-      <value value="&quot;FCFS&quot;"/>
-    </enumeratedValueSet>
-  </experiment>
   <experiment name="negotiation-pilot-1" repetitions="30" runMetricsEveryStep="false">
     <setup>setup</setup>
     <go>go</go>
@@ -3194,6 +2875,274 @@ NetLogo 6.0.4
     </enumeratedValueSet>
     <enumeratedValueSet variable="tc-1-bound">
       <value value="1200"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="overbook?">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="crane-pick-goal-function">
+      <value value="&quot;FCFS&quot;"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="negotiation-1-9" repetitions="30" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>avg-both-ta</metric>
+    <metric>avg-both-st</metric>
+    <metric>avg-both-qt</metric>
+    <metric>num-trucks-serviced</metric>
+    <metric>avg-est-cost-1</metric>
+    <metric>avg-est-cost-2</metric>
+    <metric>avg-est-cost-3</metric>
+    <enumeratedValueSet variable="sequencing">
+      <value value="&quot;free&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="negotiation?">
+      <value value="false"/>
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="alpha">
+      <value value="3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tc-2-bound">
+      <value value="2400"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="beta">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="no-shows">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="interval">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="opportunistic?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="n-for-each-tc">
+      <value value="9"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="trucks-ewt">
+      <value value="2716"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ignore-slot?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="trucks-ewt-variance">
+      <value value="0.1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="slot-per-session">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="walk-ins">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tc-3-bound">
+      <value value="3600"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tc-1-bound">
+      <value value="1200"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="overbook?">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="crane-pick-goal-function">
+      <value value="&quot;FCFS&quot;"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="negotiation-1-7" repetitions="30" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>avg-both-ta</metric>
+    <metric>avg-both-st</metric>
+    <metric>avg-both-qt</metric>
+    <metric>num-trucks-serviced</metric>
+    <metric>avg-est-cost-1</metric>
+    <metric>avg-est-cost-2</metric>
+    <metric>avg-est-cost-3</metric>
+    <enumeratedValueSet variable="sequencing">
+      <value value="&quot;free&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="negotiation?">
+      <value value="false"/>
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="alpha">
+      <value value="3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tc-2-bound">
+      <value value="2400"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="beta">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="no-shows">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="interval">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="opportunistic?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="n-for-each-tc">
+      <value value="7"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="trucks-ewt">
+      <value value="524"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ignore-slot?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="trucks-ewt-variance">
+      <value value="0.1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="slot-per-session">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="walk-ins">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tc-3-bound">
+      <value value="3600"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tc-1-bound">
+      <value value="1200"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="overbook?">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="crane-pick-goal-function">
+      <value value="&quot;FCFS&quot;"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="negotiation-1-5" repetitions="30" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>avg-both-ta</metric>
+    <metric>avg-both-st</metric>
+    <metric>avg-both-qt</metric>
+    <metric>num-trucks-serviced</metric>
+    <metric>avg-est-cost-1</metric>
+    <metric>avg-est-cost-2</metric>
+    <metric>avg-est-cost-3</metric>
+    <enumeratedValueSet variable="sequencing">
+      <value value="&quot;free&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="negotiation?">
+      <value value="false"/>
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="alpha">
+      <value value="3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tc-2-bound">
+      <value value="2400"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="beta">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="no-shows">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="interval">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="opportunistic?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="n-for-each-tc">
+      <value value="5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="trucks-ewt">
+      <value value="288"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ignore-slot?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="trucks-ewt-variance">
+      <value value="0.1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="slot-per-session">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="walk-ins">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tc-3-bound">
+      <value value="3600"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tc-1-bound">
+      <value value="1200"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="overbook?">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="crane-pick-goal-function">
+      <value value="&quot;FCFS&quot;"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="negotiation-2" repetitions="30" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>avg-both-ta</metric>
+    <metric>avg-both-st</metric>
+    <metric>avg-both-qt</metric>
+    <metric>num-trucks-serviced</metric>
+    <metric>avg-est-cost-1</metric>
+    <metric>avg-est-cost-2</metric>
+    <metric>avg-est-cost-3</metric>
+    <metric>avg-est-cost-all</metric>
+    <enumeratedValueSet variable="sequencing">
+      <value value="&quot;free&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="negotiation?">
+      <value value="false"/>
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="alpha">
+      <value value="3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tc-2-bound">
+      <value value="1200"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="beta">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="no-shows">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="interval">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="opportunistic?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="n-for-each-tc">
+      <value value="5"/>
+      <value value="7"/>
+      <value value="8"/>
+      <value value="9"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="trucks-ewt">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ignore-slot?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="trucks-ewt-variance">
+      <value value="0.1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="slot-per-session">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="walk-ins">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tc-3-bound">
+      <value value="1800"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tc-1-bound">
+      <value value="600"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="overbook?">
       <value value="false"/>
