@@ -9,7 +9,8 @@ clients-own [
   my-bound ; my time flexibility bound, cannot exceed (+ or -) this value
   my-ewt ; value of my expected wait time (global ewt * variance)
   my-wait-time ; actual wait time for this client
-  my-est-cost ; my estimated inconvenience cost, calculated after serviced
+  my-est-cost ; my estimated total cost, calculated after serviced
+  my-inc-cost ; my inconvenience cost, calculated after serviced
 
   my-arrival-time ; my final arriving time
 
@@ -177,6 +178,10 @@ globals [
   tc-1-cost
   tc-2-cost
   tc-3-cost
+
+  tc-1-inc
+  tc-2-inc
+  tc-3-inc
 
   tc-1-serviced
   tc-2-serviced
@@ -613,21 +618,25 @@ to negotiate-function [x]
   ;calculate the ideal time to move
   let new-time current-estimation - my-ewt
 
+  ;function test: do not move appointment time if estimation is below the expected
+  ;if new-time < 1 [set new-time 0]
+
   ;avoid exceeding the time bound
-  if ticks < 3600 [set new-time 0] ;disregard first tick
+  if ticks < 3600 [set new-time 0] ; disregard first tick
 
   ;move arrival time
-  set my-arrival-time round max list ticks (my-arrival-time + new-time)
+  set my-arrival-time round max list ticks (my-arrival-time + new-time) ; avoid moving to past ticks
 
   ;avoid exceeding the time bound
   if my-arrival-time < lower-bound [set my-arrival-time lower-bound]
   if my-arrival-time > upper-bound [set my-arrival-time upper-bound]
 
-  ;update turn time estimation
+  ;update turn time estimation prediction
   set current-ewt current-ewt + my-ewt
   set current-estimation (total-appointment-wt + current-ewt) / (num-trucks-serviced + x)
 
-  set color blue
+  if new-time > 0 [set color blue] ;blue if truck delays its time
+  if new-time < 0 [set color yellow] ;yellow if truck advances its time
 end
 
 to appointment-error-check
@@ -652,10 +661,22 @@ end
 
 to estimate-cost [tc-type] ; cost estimation function in the truck function
   ; function to estimate the cost. alpha = constant for waiting time. beta = constant for inconvenience of moving arrival time. negative value is a surplus.
-  set my-est-cost (alpha * (my-wait-time - my-ewt)) + (beta * (abs(my-preference - my-arrival-time)))
+  ; old function
+  ; set my-est-cost (alpha * (my-wait-time - my-ewt)) + (beta * (abs(my-preference - my-arrival-time)))
+
+  ; new function = waiting cost + inconvenience cost
+  set my-est-cost (alpha * my-wait-time) + (beta * (abs(my-preference - my-arrival-time)))
+
+  ; set inconvenience cost only
+  set my-inc-cost beta * (abs(my-preference - my-arrival-time))
+
   if tc-type = 1 [set tc-1-cost tc-1-cost + my-est-cost]
   if tc-type = 2 [set tc-2-cost tc-2-cost + my-est-cost]
   if tc-type = 3 [set tc-3-cost tc-3-cost + my-est-cost]
+
+  if tc-type = 1 [set tc-1-inc tc-1-inc + my-inc-cost]
+  if tc-type = 2 [set tc-2-inc tc-2-inc + my-inc-cost]
+  if tc-type = 3 [set tc-3-inc tc-3-inc + my-inc-cost]
 end
 
 ;;;;;;;;;;;; REPORTERS
@@ -678,6 +699,28 @@ end
 to-report avg-est-cost-all
   if num-trucks-serviced = 0 [report 0]
   report (tc-1-cost + tc-2-cost + tc-3-cost) / num-trucks-serviced
+end
+
+;;;;;;;;;;;;;
+
+to-report avg-inc-cost-1
+  if tc-1-serviced = 0 [report 0]
+  report tc-1-inc / tc-1-serviced
+end
+
+to-report avg-inc-cost-2
+  if tc-2-serviced = 0 [report 0]
+  report tc-2-inc / tc-2-serviced
+end
+
+to-report avg-inc-cost-3
+  if tc-3-serviced = 0 [report 0]
+  report tc-3-inc / tc-3-serviced
+end
+
+to-report avg-inc-cost-all
+  if num-trucks-serviced = 0 [report 0]
+  report (tc-1-inc + tc-2-inc + tc-3-inc) / num-trucks-serviced
 end
 
 ;;;;;;;;;;;;;
@@ -1160,7 +1203,7 @@ to stack-slot-check ; check if there is already truck in the destination
 ;     setxy 0 16 ; default truck waiting location outside the terminal
       set waiting true
       setxy 0 7
-      ;set color red ; color red to indicate its stack is occupied
+      set color red ; color red to indicate its stack is occupied
     ]
 end
 
@@ -1499,7 +1542,7 @@ to deliver-container [the-container]
     let containers-with-truck the-containers-in-stack with [my-truck != nobody]
     if (any? containers-with-truck) [
       ask (one-of [my-truck] of containers-with-truck) [ ;if any trucks are waiting for this spot, pick one and move him here
-;        goto-container
+        goto-container
         set waiting false ; mark that their stack is empty so they can get called in next do-move action
       ]
     ]
@@ -1805,9 +1848,9 @@ sec
 HORIZONTAL
 
 PLOT
-613
+1215
 266
-813
+1415
 416
 Trucks Serviced
 NIL
@@ -2220,43 +2263,6 @@ num-trucks-serviced
 1
 11
 
-PLOT
-1587
-330
-1787
-480
-plot 1
-NIL
-NIL
-0.0
-10.0
-0.0
-10.0
-true
-false
-"" ""
-PENS
-"default" 1.0 0 -16777216 true "" "plot both-co2-avg"
-"pen-1" 1.0 0 -7500403 true "" "plot both-nox-avg"
-
-PLOT
-1661
-328
-1861
-478
-Trucks Serviced / Session
-NIL
-NIL
-0.0
-10.0
-0.0
-10.0
-true
-false
-"" ""
-PENS
-"default" 1.0 0 -16777216 true "" "plot num-trucks-serviced-session"
-
 MONITOR
 1371
 11
@@ -2310,7 +2316,7 @@ n-for-each-tc
 n-for-each-tc
 0
 30
-8.0
+6.0
 1
 1
 NIL
@@ -2325,7 +2331,7 @@ trucks-ewt
 trucks-ewt
 1
 3000
-2716.0
+1.0
 1
 1
 NIL
@@ -2340,7 +2346,7 @@ trucks-ewt-variance
 trucks-ewt-variance
 0
 0.5
-0.5
+0.1
 0.01
 1
 NIL
@@ -2398,7 +2404,7 @@ SWITCH
 49
 negotiation?
 negotiation?
-0
+1
 1
 -1000
 
@@ -2411,7 +2417,7 @@ alpha
 alpha
 1
 10
-3.0
+1.0
 1
 1
 NIL
@@ -2433,9 +2439,9 @@ NIL
 HORIZONTAL
 
 PLOT
-814
+812
 266
-1014
+1012
 416
 Avg. Estimated Cost
 NIL
@@ -2449,14 +2455,14 @@ true
 "" ""
 PENS
 "tc-1" 1.0 0 -10899396 true "" "plot avg-est-cost-1"
-"tc-2" 1.0 0 -2674135 true "" "plot avg-est-cost-2"
-"tc-3" 1.0 0 -13345367 true "" "plot avg-est-cost-3"
+"tc-2" 1.0 0 -13345367 true "" "plot avg-est-cost-2"
+"tc-3" 1.0 0 -2674135 true "" "plot avg-est-cost-3"
 "all" 1.0 0 -7500403 true "" "plot avg-est-cost-all"
 
 PLOT
-1016
+1013
 266
-1217
+1214
 417
 Prediction
 NIL
@@ -2471,6 +2477,27 @@ true
 PENS
 "est" 1.0 0 -2674135 true "" "plot current-estimation"
 "act" 1.0 0 -7500403 true "" "plot avg-both-ta"
+
+PLOT
+611
+267
+811
+417
+Avg. Inconvenience Cost
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+true
+"" ""
+PENS
+"all" 1.0 0 -7500403 true "" "plot avg-inc-cost-all"
+"tc-1" 1.0 0 -10899396 true "" "plot avg-inc-cost-1"
+"tc-2" 1.0 0 -13345367 true "" "plot avg-inc-cost-2"
+"tc-3" 1.0 0 -2674135 true "" "plot avg-inc-cost-3"
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -3119,6 +3146,80 @@ NetLogo 6.0.4
     </enumeratedValueSet>
     <enumeratedValueSet variable="n-for-each-tc">
       <value value="5"/>
+      <value value="7"/>
+      <value value="8"/>
+      <value value="9"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="trucks-ewt">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ignore-slot?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="trucks-ewt-variance">
+      <value value="0.1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="slot-per-session">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="walk-ins">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tc-3-bound">
+      <value value="1800"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tc-1-bound">
+      <value value="600"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="overbook?">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="crane-pick-goal-function">
+      <value value="&quot;FCFS&quot;"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="negotiation-3" repetitions="30" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>avg-both-ta</metric>
+    <metric>avg-both-st</metric>
+    <metric>avg-both-qt</metric>
+    <metric>num-trucks-serviced</metric>
+    <metric>avg-est-cost-1</metric>
+    <metric>avg-est-cost-2</metric>
+    <metric>avg-est-cost-3</metric>
+    <metric>avg-est-cost-all</metric>
+    <metric>avg-inc-cost-1</metric>
+    <metric>avg-inc-cost-2</metric>
+    <metric>avg-inc-cost-3</metric>
+    <metric>avg-inc-cost-all</metric>
+    <enumeratedValueSet variable="sequencing">
+      <value value="&quot;free&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="negotiation?">
+      <value value="false"/>
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="alpha">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tc-2-bound">
+      <value value="1200"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="beta">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="no-shows">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="interval">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="opportunistic?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="n-for-each-tc">
+      <value value="6"/>
       <value value="7"/>
       <value value="8"/>
       <value value="9"/>
