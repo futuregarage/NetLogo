@@ -56,6 +56,7 @@ trucks-own [
   book?
   my-arrival-time ; the time he booked slot for
   my-admin-time
+  overb?
 ]
 
 ;ticks: each tick is one second
@@ -105,6 +106,7 @@ globals [
   total-actual-bookings
   num-trucks-serviced-session
   total-admin-time
+  total-demand
 
   total-truck-co2-global
   total-crane-co2-global
@@ -268,16 +270,14 @@ to do-move
   if sequencing = "overbook-admin" [ ; let only appointment truck first, then the overbooking only if no appointment trucks inside. no walk ins. also assume there is a administrative process prior to come to terminal.
     let booked-truck-inside count trucks with [member? ycor tlane and book? = true]
     ifelse booked-truck-inside = 0 [
-      set the-truck one-of trucks with [waiting = false and my-crane = nobody and my-admin-time = ticks]
+      set the-truck one-of trucks with [waiting = false and my-crane = nobody and my-admin-time <= ticks]
     ][
-      set the-truck one-of trucks with [waiting = false and my-crane = nobody and book? = true and my-admin-time = ticks]
+      set the-truck one-of trucks with [waiting = false and my-crane = nobody and book? = true and overb? = false and my-admin-time <= ticks]
   ]
   ]
-
 
   ; move
   if the-truck = nobody [stop]
-
   ask the-truck [
     if cargo = nobody [stop]
     goto-container
@@ -400,7 +400,7 @@ to init-client
   set demand10 round abs random-normal 3.4	2.633122354
 
   ;let n-client count clients
-  let total-demand demand1 + demand2 + demand3 + demand4 + demand5 + demand6 + demand7 + demand8 + demand9 + demand10
+  set total-demand demand1 + demand2 + demand3 + demand4 + demand5 + demand6 + demand7 + demand8 + demand9 + demand10
   ask n-of total-demand patches with [ pycor > 12 and not any? clients-here][
     sprout-clients 1 [
       set shape "person"
@@ -427,13 +427,23 @@ to do-appointment [session-id] ; appointments are made in each beginning of sess
   if session-id = 10 [set demand-this-ses demand10]
 
   ;count difference between current demand and open slot
+  ;if excess is positive, then it is a number of customers that want to be in overbooking slot if open
+  ;if excess is not positive, then there will be no customers that want to be in overbooking slot
   let excess-value demand-this-ses - slot-per-session
   let excess max list excess-value 0 ;avoid negative value
+
+  ;save value for priority slot, the
+  let priority-slot min list slot-per-session demand-this-ses
+  let priority-value slot-per-session - demand-this-ses
+  let priority-remaining max list 0 priority-value ;avoid negative value
+
+  ;consider open slot by multiplying overbook ratio with open slots
+  let open-ob-slot round (overbook-ratio * slot-per-session)
 
   set stack-list [] ; a list of stack that has been booked, reset every new session
   let set-arrival-time round (3600 / slot-per-session) ; 1 hour per slot per session
   let x 1
-  repeat slot-per-session [
+  repeat priority-slot [
     let the-client one-of clients with [book? = 0]
     if (the-client = nobody) [stop]
 
@@ -444,6 +454,7 @@ to do-appointment [session-id] ; appointments are made in each beginning of sess
     if (the-cargo = nobody) [stop]
     ask the-client [
       set book? true
+      set overb? false
       set my-start-time ticks
       set color green
       set cargo the-cargo
@@ -468,13 +479,45 @@ to do-appointment [session-id] ; appointments are made in each beginning of sess
       set stack-list fput [my-stack] of cargo stack-list
     ]
 ;=======================================================================
-  ; overbooking model, where for every slot there is probability (p = estimated no shows) to allow new bookings
-    if overbook? = true [
+;  ; overbooking model, where for every slot there is probability (p = estimated no shows) to allow new bookings
+;    if overbook? = true [
+;      let ob-client one-of clients with [cargo = nobody and book? = 0]
+;      if (ob-client = nobody) [stop]
+;      let ob-cargo one-of containers with [my-truck = nobody and pick-me = false and my-stack = chosen-stack]
+;      ifelse random-float 1.0 < no-shows [
+;        ask ob-client [
+;          set book? true
+;          set my-start-time ticks
+;          set color green
+;          set cargo ob-cargo
+;          if (cargo = nobody) [die stop] ; all stacks are full!
+;          ask cargo [
+;            ; set color appointment
+;            set color green
+;            set size 1
+;          ]
+;          set my-truck nobody
+;          set my-arrival-time (set-arrival-time * x ) + ticks + 1 ; trucks will arrive 1 sec later
+;          set overb? true
+;        ]
+;        print "overbook occur"
+;      ][
+;        print "overbook does not occur"
+;        ]
+;    ]
+;    print x
+;=======================================================================
+;=======================================================================
+  ; overbooking model
+
+
+    ;first we check if the demand exceeds the open slot, otherwise stop
+    if overbook? = true and excess > 0 and open-ob-slot > 0 [
       let ob-client one-of clients with [cargo = nobody and book? = 0]
       if (ob-client = nobody) [stop]
       let ob-cargo one-of containers with [my-truck = nobody and pick-me = false and my-stack = chosen-stack]
-      ifelse random-float 1.0 < no-shows [
-        ask ob-client [
+
+      ask ob-client [
           set book? true
           set my-start-time ticks
           set color green
@@ -490,9 +533,8 @@ to do-appointment [session-id] ; appointments are made in each beginning of sess
           set overb? true
         ]
         print "overbook occur"
-      ][
-        print "overbook does not occur"
-        ]
+        set excess excess - 1
+        set open-ob-slot open-ob-slot - 1
     ]
     print x
 ;=======================================================================
@@ -585,6 +627,7 @@ to create-the-truck [the-client]
       set cargo [cargo] of the-client
       ask cargo [set my-truck myself]
       set book? [book?] of the-client
+      set overb? [overb?] of the-client
 
       ; appointment function
       ifelse book? = true [
@@ -1584,7 +1627,7 @@ no-shows
 0
 1
 0.0
-0.01
+0.1
 1
 NIL
 HORIZONTAL
@@ -1636,7 +1679,7 @@ slot-per-session
 slot-per-session
 0
 40
-6.0
+4.0
 1
 1
 NIL
@@ -1763,11 +1806,11 @@ sec
 HORIZONTAL
 
 PLOT
-413
-1125
-613
-1275
-trucks serviced
+815
+264
+1015
+414
+N Trucks Serviced
 NIL
 NIL
 0.0
@@ -1916,7 +1959,7 @@ NIL
 0.0
 10.0
 true
-true
+false
 "" ""
 PENS
 "total" 1.0 0 -7500403 true "" "plot avg-both-qt"
@@ -1942,6 +1985,7 @@ PENS
 "total" 1.0 0 -7500403 true "" "plot avg-both-ta"
 "queue" 1.0 0 -2674135 true "" "plot avg-both-qt"
 "service" 1.0 0 -10899396 true "" "plot avg-both-st"
+"admin" 1.0 0 -13345367 true "" "plot avg-both-ad"
 
 PLOT
 208
@@ -2254,7 +2298,7 @@ overbook-ratio
 overbook-ratio
 0
 1
-0.0
+0.1
 0.1
 1
 NIL
@@ -2276,7 +2320,7 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot avg-both-ad"
+"default" 1.0 0 -10899396 true "" "plot avg-both-ad"
 
 @#$#@#$#@
 ## WHAT IS IT?
