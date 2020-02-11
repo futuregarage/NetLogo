@@ -1636,7 +1636,7 @@ slot-per-session
 slot-per-session
 0
 40
-20.0
+6.0
 1
 1
 NIL
@@ -1916,7 +1916,7 @@ NIL
 0.0
 10.0
 true
-false
+true
 "" ""
 PENS
 "total" 1.0 0 -7500403 true "" "plot avg-both-qt"
@@ -1942,7 +1942,6 @@ PENS
 "total" 1.0 0 -7500403 true "" "plot avg-both-ta"
 "queue" 1.0 0 -2674135 true "" "plot avg-both-qt"
 "service" 1.0 0 -10899396 true "" "plot avg-both-st"
-"admin" 1.0 0 -13345367 true "" "plot avg-both-ad"
 
 PLOT
 208
