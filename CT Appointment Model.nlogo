@@ -115,6 +115,17 @@ globals [
   total-truck-thc-global
   total-crane-thc-global
 
+  demand1
+  demand2
+  demand3
+  demand4
+  demand5
+  demand6
+  demand7
+  demand8
+  demand9
+  demand10
+
 ; globals for crane movement
   ticks-to-lift
 
@@ -173,29 +184,31 @@ to setup
   init-world
   init-crane
   init-container
-  init-client
+  ;init-client
 end
 
 to go
-  ; check session
-;  let list-session (list 0 3600 7200 10800 14400 18000 21600 25200 28800 32400)
+  ;check session
+  ;let list-session (list 0 3600 7200 10800 14400 18000 21600 25200 28800 32400)
   let list-session (list 0 3601 7201 10801 14401 18001 21601 25201 28801 32401)
   if ticks >= 36000 [ ; stop after 10 hour
     count-spillover ; count for the last session (tick 36000)
     stop
   ]
 
+  ;pre-arrival procedure
   if (member? ticks list-session) [
     set sessions sessions + 1
     count-spillover
     set num-trucks-serviced-session 0
-;    if run? = true [
-      init-container
-      init-client
-      do-appointment
-;    ]
+
+    init-container
+    init-client
+    do-appointment sessions
+
   ]
 
+  ;on-arrival procedure
   do-walk-in
   do-arrive
   appointment-arrival
@@ -256,10 +269,10 @@ to do-move
 end
 
 to init-globals
-  set ticks-to-lift 15 ; base number of crane lifting procedure
-  set ticks-to-rehandle 40 ; number of ticks it takes for crane to move container from one place to another in the same stack.
-  set ticks-to-deliver 50 ;number of ticks it takes for crane to move container from stack to truck
-  set ticks-to-move 6 ;number of ticks it takes for the crane to move to an adjacent container
+  set ticks-to-lift 45 ; base number of crane lifting procedure 15
+  set ticks-to-rehandle 120 ; number of ticks it takes for crane to move container from one place to another in the same stack. 40
+  set ticks-to-deliver 100 ;number of ticks it takes for crane to move container from stack to truck 50
+  set ticks-to-move 12 ;number of ticks it takes for the crane to move to an adjacent container 6
   set decommitment-penalty 1000
   set crane-road-xcors (list 0 8 9 10 11 12)
   set crane-road-ycors (list 0 41)
@@ -353,9 +366,25 @@ to init-crane
 end
 
 to init-client
-  let n-client count clients
-  let buffer max list 0 (n-demand - n-client)
-  ask n-of buffer patches with [ pycor > 12 and not any? clients-here][
+  ;trigger only on tick 0
+  if ticks != 0 [stop]
+
+  ;initiate the appointment demand based on historical data by Huynh 2008
+  ;randomized with mean and stdev of each blocks
+  set demand1 round abs random-normal 6.4	5.168279318
+  set demand2 round abs random-normal 5.9	2.330951165
+  set demand3 round abs random-normal 7.4	3.470510689
+  set demand4 round abs random-normal 5.3	1.702938637
+  set demand5 round abs random-normal 6.7	2.71006355
+  set demand6 round abs random-normal 5.5	1.715938357
+  set demand7 round abs random-normal 7.3	2.311805451
+  set demand8 round abs random-normal 8	3.496029494
+  set demand9 round abs random-normal 6.8	2.201009869
+  set demand10 round abs random-normal 3.4	2.633122354
+
+  ;let n-client count clients
+  let total-demand demand1 + demand2 + demand3 + demand4 + demand5 + demand6 + demand7 + demand8 + demand9 + demand10
+  ask n-of total-demand patches with [ pycor > 12 and not any? clients-here][
     sprout-clients 1 [
       set shape "person"
       set color black
@@ -366,7 +395,24 @@ to init-client
   ]
 end
 
-to do-appointment ; appointments are made in each beginning of sessions
+to do-appointment [session-id] ; appointments are made in each beginning of sessions
+  ;id demand for current session
+  let demand-this-ses 0
+  if session-id = 1 [set demand-this-ses demand1]
+  if session-id = 2 [set demand-this-ses demand2]
+  if session-id = 3 [set demand-this-ses demand3]
+  if session-id = 4 [set demand-this-ses demand4]
+  if session-id = 5 [set demand-this-ses demand5]
+  if session-id = 6 [set demand-this-ses demand6]
+  if session-id = 7 [set demand-this-ses demand7]
+  if session-id = 8 [set demand-this-ses demand8]
+  if session-id = 9 [set demand-this-ses demand9]
+  if session-id = 10 [set demand-this-ses demand10]
+
+  ;count difference between current demand and open slot
+  let excess-value demand-this-ses - slot-per-session
+  let excess max list excess-value 0 ;avoid negative value
+
   set stack-list [] ; a list of stack that has been booked, reset every new session
   let set-arrival-time round (3600 / slot-per-session) ; 1 hour per slot per session
   let x 1
@@ -391,7 +437,15 @@ to do-appointment ; appointments are made in each beginning of sessions
         set size 1
         ]
       set my-truck nobody
-      set my-arrival-time (set-arrival-time * x) + ticks
+
+      ifelse random-float 1.0 < late-rate [
+        let min-late 60 ;minimum value is 60 second
+        let eav (random max-late-value) + min-late
+        set my-arrival-time (((set-arrival-time * x) - set-arrival-time) + ticks) + eav
+        print "late triggered"
+      ][
+        set my-arrival-time ((set-arrival-time * x) - set-arrival-time) + ticks
+      ]
 
       ;update the stack-list
       set stack-list fput [my-stack] of cargo stack-list
@@ -1048,7 +1102,7 @@ to go-crane
     ifelse (any? trucks with [not waiting])[
       let goalp []
       ;;;;;; =============== crane choice of utility function starts =================
-      if (crane-pick-goal-function = "FIFO") [set goalp pick-goal-position-fcfo]
+      if (crane-pick-goal-function = "FCFS") [set goalp pick-goal-position-fcfo]
       if (crane-pick-goal-function = "distance") [set goalp pick-goal-position-distance]
       ;;;;;;; ================= crane choice of utility function ends =======================
       ifelse (goalp != nobody) [ ; if a valid group and stack values are returned
@@ -1468,7 +1522,7 @@ n-demand
 n-demand
 0
 100
-100.0
+0.0
 1
 1
 NIL
@@ -1498,7 +1552,7 @@ no-shows
 no-shows
 0
 1
-0.4
+0.0
 0.01
 1
 NIL
@@ -1511,7 +1565,7 @@ SWITCH
 144
 opportunistic?
 opportunistic?
-0
+1
 1
 -1000
 
@@ -1522,8 +1576,8 @@ CHOOSER
 109
 crane-pick-goal-function
 crane-pick-goal-function
-"FIFO" "distance"
-1
+"FCFS" "distance"
+0
 
 BUTTON
 937
@@ -1551,7 +1605,7 @@ slot-per-session
 slot-per-session
 0
 40
-20.0
+9.0
 1
 1
 NIL
@@ -2083,10 +2137,10 @@ PENS
 "crane" 1.0 0 -10899396 true "" "plot total-crane-thc"
 
 MONITOR
-1018
-240
-1143
-285
+1402
+279
+1527
+324
 NIL
 num-trucks-serviced
 17
@@ -2094,10 +2148,10 @@ num-trucks-serviced
 11
 
 PLOT
-789
-230
-989
-380
+1173
+269
+1373
+419
 plot 1
 NIL
 NIL
@@ -2113,10 +2167,10 @@ PENS
 "pen-1" 1.0 0 -7500403 true "" "plot both-nox-avg"
 
 PLOT
-1091
-290
-1291
-440
+1475
+329
+1675
+479
 Trucks Serviced / Session
 NIL
 NIL
@@ -2129,6 +2183,36 @@ false
 "" ""
 PENS
 "default" 1.0 0 -16777216 true "" "plot num-trucks-serviced-session"
+
+SLIDER
+837
+167
+1009
+200
+late-rate
+late-rate
+0
+0.5
+0.0
+0.1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+835
+206
+1020
+239
+max-late-value
+max-late-value
+0
+240
+240.0
+10
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
