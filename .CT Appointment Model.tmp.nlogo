@@ -57,6 +57,7 @@ trucks-own [
   my-arrival-time ; the time he booked slot for
   my-admin-time
   overb?
+  my-admin-start-time ; the time priority slots are all clear and overbook trucks allowed to proceed with admin process
 ]
 
 ;ticks: each tick is one second
@@ -183,6 +184,8 @@ globals [
 ]
 
 to setup
+  print "-----"
+
   clear-all
   reset-ticks
   init-globals
@@ -267,11 +270,30 @@ to do-move
   ]
 
   ; sequence 4
-  if sequencing = "overbook-admin" [ ; let only appointment truck first, then the overbooking only if no appointment trucks inside. no walk ins. also assume there is a administrative process prior to come to terminal.
+  if sequencing = "overbook-admin-loose" [ ; let only appointment truck first, then the overbooking only if no appointment trucks inside. no walk ins. also assume there is a administrative process prior to come to terminal.
     let booked-truck-inside count trucks with [member? ycor tlane and book? = true]
     ifelse booked-truck-inside = 0 [
       set the-truck one-of trucks with [waiting = false and my-crane = nobody and my-admin-time <= ticks]
     ][
+      set the-truck one-of trucks with [waiting = false and my-crane = nobody and book? = true and overb? = false and my-admin-time <= ticks]
+  ]
+  ]
+  ; sequence 5
+  if sequencing = "overbook-admin-strict" [ ; let only appointment truck first, then the overbooking only if no appointment trucks inside. no walk ins. also assume there is a administrative process prior to come to terminal.
+    let booked-truck-inside count trucks with [member? ycor tlane and book? = true]
+    let booked-truck-outside count trucks with [member? ycor wlane and overb? = false]
+    ifelse booked-truck-inside = 0 and booked-truck-outside = 0 [
+      set the-truck one-of trucks with [waiting = false and my-crane = nobody and my-admin-time <= ticks]
+      if the-truck = nobody [stop]
+      if [my-admin-start-time] of the-truck < 1 [ ; only start the admin process once all the priority slots are done
+        ask the-truck [
+          set my-admin-start-time ticks
+          set my-admin-time my-admin-start-time + my-admin-time
+          ;set overb? false
+          stop
+        ]
+    stop
+    ]][
       set the-truck one-of trucks with [waiting = false and my-crane = nobody and book? = true and overb? = false and my-admin-time <= ticks]
   ]
   ]
@@ -520,7 +542,7 @@ to do-appointment [session-id] ; appointments are made in each beginning of sess
       ask ob-client [
           set book? true
           set my-start-time ticks
-          set color green
+          set color blue
           set cargo ob-cargo
           if (cargo = nobody) [die stop] ; all stacks are full!
           ask cargo [
@@ -603,6 +625,7 @@ to appointment-arrival ; procedure for appointment arrival, with a chance of no-
       ]
       die
     ]
+      print "no-show occured"
 
   ][
       create-the-truck the-client
@@ -630,10 +653,10 @@ to create-the-truck [the-client]
       set overb? [overb?] of the-client
 
       ; appointment function
-      ifelse book? = true [
+      ifelse overb? = false [
           set color green
         ][
-          set color yellow
+          set color blue
         ]
 
       set my-group [my-group] of cargo
@@ -641,7 +664,11 @@ to create-the-truck [the-client]
       set my-client the-client
       ask the-client [set my-truck myself]
 
+    ifelse overb? = false [
       set my-admin-time abs ((random 60) + 600) + my-start-time ;add administrative requirement time for each truck, ranging from 660-720 seconds
+    ][
+      set my-admin-time abs ((random 60) + 600)
+    ]
     ]
 end
 
@@ -1463,7 +1490,7 @@ to deliver-container [the-container]
       ifelse book? = true [
         set total-appointment-wt total-appointment-wt + (ticks - my-start-time)
         set total-appointment-st total-appointment-st + (ticks - service-time)
-        set total-appointment-qt total-appointment-qt + (service-time - my-start-time - (my-admin-time - my-start-time))
+        set total-appointment-qt total-appointment-qt + (ticks - my-start-time - (service-time - (my-admin-time - my-start-time))
         ;set total-appointment-qt total-appointment-qt + (service-time - my-start-time)
       ][
         set total-walkin-wt total-walkin-wt + (ticks - my-start-time)
@@ -1626,7 +1653,7 @@ no-shows
 no-shows
 0
 1
-0.0
+0.4
 0.1
 1
 NIL
@@ -1826,11 +1853,11 @@ PENS
 CHOOSER
 764
 16
-921
+922
 61
 sequencing
 sequencing
-"overbook-admin" "loose-appointment" "strict-appointment" "random"
+"overbook-admin-strict" "overbook-admin-loose" "loose-appointment" "strict-appointment" "random"
 0
 
 PLOT
@@ -2070,7 +2097,7 @@ SWITCH
 131
 overbook?
 overbook?
-1
+0
 1
 -1000
 
@@ -2298,7 +2325,7 @@ overbook-ratio
 overbook-ratio
 0
 1
-0.1
+0.5
 0.1
 1
 NIL
