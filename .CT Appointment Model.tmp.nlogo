@@ -184,7 +184,7 @@ globals [
 ]
 
 to setup
-  print "-----"
+  print "-- Simulation Start --"
 
   clear-all
   reset-ticks
@@ -201,6 +201,7 @@ to go
   let list-session (list 0 3601 7201 10801 14401 18001 21601 25201 28801 32401)
   if ticks >= 36000 [ ; stop after 10 hour
     count-spillover ; count for the last session (tick 36000)
+    print "-- Simulation End --"
     stop
   ]
 
@@ -665,9 +666,9 @@ to create-the-truck [the-client]
       ask the-client [set my-truck myself]
 
     ifelse overb? = false [
-      set my-admin-time abs ((random 60) + 600) + my-start-time ;add administrative requirement time for each truck, ranging from 660-720 seconds
+      set my-admin-time abs ((random 60) + base-admin-time) + my-start-time ;add administrative requirement time for each truck, varies ~1-60 seconds
     ][
-      set my-admin-time abs ((random 60) + 600)
+      set my-admin-time abs ((random 60) + base-admin-time)
     ]
     ]
 end
@@ -693,6 +694,11 @@ to count-spillover
 end
 
 ;;;;;;;;;;;; REPORTERS
+
+to-report slot-utilization
+  if sessions = 0 [report 0]
+  report num-trucks-serviced / (slot-per-session * sessions)
+end
 
 to-report crane-utilization
   if ticks = 0 [report 0]
@@ -1490,7 +1496,7 @@ to deliver-container [the-container]
       ifelse book? = true [
         set total-appointment-wt total-appointment-wt + (ticks - my-start-time)
         set total-appointment-st total-appointment-st + (ticks - service-time)
-        set total-appointment-qt total-appointment-qt + (ticks - my-start-time - (service-time - (my-admin-time - my-start-time))
+        set total-appointment-qt total-appointment-qt + (ticks - my-start-time - (ticks - service-time) - (my-admin-time - my-start-time))
         ;set total-appointment-qt total-appointment-qt + (service-time - my-start-time)
       ][
         set total-walkin-wt total-walkin-wt + (ticks - my-start-time)
@@ -1653,7 +1659,7 @@ no-shows
 no-shows
 0
 1
-0.4
+0.3
 0.1
 1
 NIL
@@ -1848,7 +1854,7 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot num-trucks-serviced"
+"default" 1.0 0 -10899396 true "" "plot num-trucks-serviced"
 
 CHOOSER
 764
@@ -2304,7 +2310,7 @@ HORIZONTAL
 SLIDER
 1408
 241
-1593
+1583
 274
 max-late-value
 max-late-value
@@ -2325,7 +2331,7 @@ overbook-ratio
 overbook-ratio
 0
 1
-0.5
+0.0
 0.1
 1
 NIL
@@ -2348,6 +2354,50 @@ false
 "" ""
 PENS
 "default" 1.0 0 -10899396 true "" "plot avg-both-ad"
+
+SLIDER
+572
+177
+744
+210
+base-admin-time
+base-admin-time
+180
+900
+600.0
+10
+1
+NIL
+HORIZONTAL
+
+PLOT
+1016
+263
+1216
+413
+Slot Utilization
+NIL
+NIL
+0.0
+10.0
+0.0
+1.0
+true
+false
+"" ""
+PENS
+"pen-1" 1.0 0 -7500403 true "" "plot slot-utilization"
+
+MONITOR
+951
+128
+1055
+173
+NIL
+slot-utilization
+17
+1
+11
 
 @#$#@#$#@
 ## WHAT IS IT?
