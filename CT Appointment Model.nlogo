@@ -1723,10 +1723,10 @@ NIL
 1
 
 SLIDER
-571
-16
-743
-49
+572
+14
+744
+47
 slot-per-session
 slot-per-session
 0
@@ -1734,7 +1734,7 @@ slot-per-session
 4.0
 1
 1
-NIL
+trucks
 HORIZONTAL
 
 PLOT
@@ -2377,7 +2377,7 @@ PENS
 SLIDER
 571
 135
-743
+744
 168
 base-admin-time
 base-admin-time
@@ -2386,7 +2386,7 @@ base-admin-time
 600.0
 10
 1
-NIL
+sec
 HORIZONTAL
 
 PLOT
@@ -2432,16 +2432,16 @@ num-trucks-serviced
 SLIDER
 571
 174
-743
+744
 207
 engine-off-time
 engine-off-time
 0
-300
+360
 300.0
 10
 1
-NIL
+sec
 HORIZONTAL
 
 @#$#@#$#@
@@ -3064,6 +3064,71 @@ NetLogo 6.0.4
     </enumeratedValueSet>
     <enumeratedValueSet variable="opportunistic?">
       <value value="true"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="2020-PILOT-1" repetitions="1" runMetricsEveryStep="true">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>avg-both-ta</metric>
+    <metric>avg-both-qt</metric>
+    <metric>avg-both-st</metric>
+    <metric>avg-both-ad</metric>
+    <metric>num-trucks-serviced</metric>
+    <metric>slot-utilization</metric>
+    <metric>total-truck-co2</metric>
+    <metric>total-truck-co</metric>
+    <metric>total-truck-nox</metric>
+    <metric>total-truck-pm</metric>
+    <metric>total-truck-thc</metric>
+    <enumeratedValueSet variable="sequencing">
+      <value value="&quot;overbook-admin-strict&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="late-rate">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="engine-off-time">
+      <value value="300"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="overbook-ratio">
+      <value value="0"/>
+      <value value="0.2"/>
+      <value value="0.4"/>
+      <value value="0.7"/>
+      <value value="0.9"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="no-shows">
+      <value value="0"/>
+      <value value="0.1"/>
+      <value value="0.2"/>
+      <value value="0.3"/>
+      <value value="0.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="interval">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="opportunistic?">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="slot-per-session">
+      <value value="4"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="walk-ins">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="n-demand">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="base-admin-time">
+      <value value="600"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="overbook?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="crane-pick-goal-function">
+      <value value="&quot;FCFS&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="max-late-value">
+      <value value="240"/>
     </enumeratedValueSet>
   </experiment>
 </experiments>
