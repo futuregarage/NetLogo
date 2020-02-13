@@ -58,6 +58,8 @@ trucks-own [
   my-admin-time
   overb?
   my-admin-start-time ; the time priority slots are all clear and overbook trucks allowed to proceed with admin process
+  engine? ; if true the engine is on (emitting emission), false is off (does not emit emission)
+  engine-off-ticks
 ]
 
 ;ticks: each tick is one second
@@ -241,6 +243,11 @@ to do-move
   let booked-truck count trucks with [member? ycor wlane and book? = true] ; count trucks in the wait lane (dark grey area)
   let the-truck 0
 
+  ; trucks that idling outside that exceeds engine-off-time will be turning off their engine
+  let turning-off-trucks one-of trucks with [waiting = false and member? ycor wlane and engine? = true and engine-off-ticks = ticks]
+  if turning-off-trucks != nobody [
+    ask turning-off-trucks [set engine? false]
+  ]
 
 
   ; sequence 1
@@ -290,6 +297,8 @@ to do-move
         ask the-truck [
           set my-admin-start-time ticks
           set my-admin-time my-admin-start-time + my-admin-time
+          set engine? true
+          set engine-off-ticks ticks + engine-off-time
           ;set overb? false
           stop
         ]
@@ -298,6 +307,12 @@ to do-move
       set the-truck one-of trucks with [waiting = false and my-crane = nobody and book? = true and overb? = false and my-admin-time <= ticks]
   ]
   ]
+
+  ; current limit number of trucks serviced
+  let current-occupation slot-per-session * sessions
+  ; check slot utilization, if exceeds 100% then stop
+  if slot-utilization > 1 or num-trucks-serviced >= current-occupation [stop]
+
 
   ; move
   if the-truck = nobody [stop]
@@ -535,7 +550,7 @@ to do-appointment [session-id] ; appointments are made in each beginning of sess
 
 
     ;first we check if the demand exceeds the open slot, otherwise stop
-    if overbook? = true and excess > 0 and open-ob-slot > 0 [
+    if excess > 0 and open-ob-slot > 0 [
       let ob-client one-of clients with [cargo = nobody and book? = 0]
       if (ob-client = nobody) [stop]
       let ob-cargo one-of containers with [my-truck = nobody and pick-me = false and my-stack = chosen-stack]
@@ -555,7 +570,7 @@ to do-appointment [session-id] ; appointments are made in each beginning of sess
           set my-arrival-time (set-arrival-time * x ) + ticks + 1 ; trucks will arrive 1 sec later
           set overb? true
         ]
-        print "overbook occur"
+        print "overbook occured"
         set excess excess - 1
         set open-ob-slot open-ob-slot - 1
     ]
@@ -664,6 +679,8 @@ to create-the-truck [the-client]
       set my-stack [my-stack] of cargo
       set my-client the-client
       ask the-client [set my-truck myself]
+
+    set engine? true;
 
     ifelse overb? = false [
       set my-admin-time abs ((random 60) + base-admin-time) + my-start-time ;add administrative requirement time for each truck, varies ~1-60 seconds
@@ -829,13 +846,13 @@ to-report total-crane-co2
 end
 
 to-report truck-emission-activity-co2
-  let x count trucks
+  let x count trucks with [engine? = true]
   if x = nobody [report 0]
   report x * truck-idle-co2
 end
 
 to-report total-truck-co2
-  let x count trucks
+  let x count trucks with [engine? = true]
   if x = 0 [report total-truck-co2-global]
   let this-tick x * truck-idle-co2
   set total-truck-co2-global total-truck-co2-global + this-tick
@@ -898,13 +915,13 @@ to-report total-crane-co
 end
 
 to-report truck-emission-activity-co
-  let x count trucks
+  let x count trucks with [engine? = true]
   if x = nobody [report 0]
   report x * truck-idle-co
 end
 
 to-report total-truck-co
-  let x count trucks
+  let x count trucks with [engine? = true]
   if x = 0 [report total-truck-co-global]
   let this-tick x * truck-idle-co
   set total-truck-co-global total-truck-co-global + this-tick
@@ -956,13 +973,13 @@ to-report total-crane-nox
 end
 
 to-report truck-emission-activity-nox
-  let x count trucks
+  let x count trucks with [engine? = true]
   if x = nobody [report 0]
   report x * truck-idle-nox
 end
 
 to-report total-truck-nox
-  let x count trucks
+  let x count trucks with [engine? = true]
   if x = 0 [report total-truck-nox-global]
   let this-tick x * truck-idle-nox
   set total-truck-nox-global total-truck-nox-global + this-tick
@@ -1026,13 +1043,13 @@ to-report total-crane-pm
 end
 
 to-report truck-emission-activity-pm
-  let x count trucks
+  let x count trucks with [engine? = true]
   if x = nobody [report 0]
   report x * truck-idle-dpm
 end
 
 to-report total-truck-pm
-  let x count trucks
+  let x count trucks with [engine? = true]
   if x = 0 [report total-truck-pm-global]
   let this-tick x * truck-idle-dpm
   set total-truck-pm-global total-truck-pm-global + this-tick
@@ -1084,13 +1101,13 @@ to-report total-crane-thc
 end
 
 to-report truck-emission-activity-thc
-  let x count trucks
+  let x count trucks with [engine? = true]
   if x = nobody [report 0]
   report x * truck-idle-hc
 end
 
 to-report total-truck-thc
-  let x count trucks
+  let x count trucks with [engine? = true]
   if x = 0 [report total-truck-thc-global]
   let this-tick x * truck-idle-hc
   set total-truck-thc-global total-truck-thc-global + this-tick
@@ -1155,6 +1172,8 @@ end
 
 ;move the truck to the position where it can pick up cargo (container)
 to goto-container
+  ;set engine always true inside terminal
+  set engine? true
   setxy ([xcor] of cargo) ([ycor] of cargo)
   set ycor (ycor - (6 - [my-row] of cargo))
   ;set label my-start-time
@@ -1604,10 +1623,10 @@ ticks
 30.0
 
 BUTTON
-936
-17
-1058
-50
+923
+19
+1045
+52
 NIL
 setup
 NIL
@@ -1652,24 +1671,24 @@ HORIZONTAL
 
 SLIDER
 572
-57
+55
 744
-90
+88
 no-shows
 no-shows
 0
 1
-0.3
+0.0
 0.1
 1
 NIL
 HORIZONTAL
 
 SWITCH
-765
-111
-922
-144
+1598
+126
+1755
+159
 opportunistic?
 opportunistic?
 1
@@ -1677,20 +1696,20 @@ opportunistic?
 -1000
 
 CHOOSER
-764
-64
-922
-109
+755
+65
+913
+110
 crane-pick-goal-function
 crane-pick-goal-function
 "FCFS" "distance"
 0
 
 BUTTON
-937
-53
-1058
-86
+924
+55
+1045
+88
 NIL
 go
 T
@@ -1705,13 +1724,13 @@ NIL
 
 SLIDER
 571
-18
+16
 743
-51
+49
 slot-per-session
 slot-per-session
 0
-40
+20
 4.0
 1
 1
@@ -1775,10 +1794,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot crane-utilization"
 
 MONITOR
-1070
-16
-1126
-61
+1057
+18
+1159
+63
 NIL
 sessions
 17
@@ -1854,13 +1873,13 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -10899396 true "" "plot num-trucks-serviced"
+"default" 1.0 0 -13345367 true "" "plot num-trucks-serviced"
 
 CHOOSER
-764
-16
-922
-61
+755
+17
+913
+62
 sequencing
 sequencing
 "overbook-admin-strict" "overbook-admin-loose" "loose-appointment" "strict-appointment" "random"
@@ -1938,9 +1957,9 @@ stack-list
 11
 
 MONITOR
-1127
+1412
 16
-1234
+1519
 61
 appointment clients
 count clients with [book? = true]
@@ -1949,9 +1968,9 @@ count clients with [book? = true]
 11
 
 MONITOR
-1234
+1519
 16
-1323
+1608
 61
 walk-in clients
 count clients with [book? = false]
@@ -2097,10 +2116,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot truck-emission-activity-co2"
 
 SWITCH
-572
-98
-744
-131
+1599
+87
+1771
+120
 overbook?
 overbook?
 0
@@ -2323,15 +2342,15 @@ NIL
 HORIZONTAL
 
 SLIDER
-573
-138
-745
-171
+572
+96
+744
+129
 overbook-ratio
 overbook-ratio
 0
 1
-0.0
+0.5
 0.1
 1
 NIL
@@ -2356,10 +2375,10 @@ PENS
 "default" 1.0 0 -10899396 true "" "plot avg-both-ad"
 
 SLIDER
-572
-177
-744
-210
+571
+135
+743
+168
 base-admin-time
 base-admin-time
 180
@@ -2386,18 +2405,44 @@ true
 false
 "" ""
 PENS
-"pen-1" 1.0 0 -7500403 true "" "plot slot-utilization"
+"pen-1" 1.0 0 -10899396 true "" "plot slot-utilization"
 
 MONITOR
-951
-128
-1055
-173
+1057
+68
+1160
+113
 NIL
 slot-utilization
 17
 1
 11
+
+MONITOR
+1057
+118
+1161
+163
+NIL
+num-trucks-serviced
+17
+1
+11
+
+SLIDER
+571
+174
+743
+207
+engine-off-time
+engine-off-time
+0
+300
+300.0
+10
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
