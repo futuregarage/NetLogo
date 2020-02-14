@@ -133,6 +133,8 @@ globals [
   demand9
   demand10
 
+  num-of-overtime
+
 
 ; globals for crane movement
   ticks-to-lift
@@ -202,7 +204,8 @@ to go
   ;let list-session (list 0 3600 7200 10800 14400 18000 21600 25200 28800 32400)
   let list-session (list 0 3601 7201 10801 14401 18001 21601 25201 28801 32401)
   if ticks >= 36000 [ ; stop after 10 hour
-    count-spillover ; count for the last session (tick 36000)
+    ;count-spillover ; count for the last session (tick 36000)
+    set num-of-overtime num-of-overtime + n-overtime
     print "-- Simulation End --"
     stop
   ]
@@ -210,8 +213,9 @@ to go
   ;pre-arrival procedure
   if (member? ticks list-session) [
     set sessions sessions + 1
-    count-spillover
-    set num-trucks-serviced-session 0
+    ;count-spillover
+    ;set num-trucks-serviced-session 0
+    set num-of-overtime num-of-overtime + n-overtime
 
     init-container
     init-client
@@ -762,6 +766,14 @@ to count-spillover
 end
 
 ;;;;;;;;;;;; REPORTERS
+to-report unmet-demand
+  if num-trucks-serviced = 0 [report 1]
+  report (total-demand - num-trucks-serviced) / total-demand
+end
+
+to-report n-overtime
+  report count trucks
+end
 
 to-report slot-utilization
   if sessions = 0 [report 0]
@@ -1762,7 +1774,7 @@ no-shows
 0
 1
 0.0
-0.1
+0.05
 1
 NIL
 HORIZONTAL
@@ -2433,7 +2445,7 @@ overbook-ratio
 overbook-ratio
 -0.1
 1
--0.1
+0.0
 0.1
 1
 NIL
@@ -2582,6 +2594,53 @@ false
 "" ""
 PENS
 "default" 1.0 0 -16777216 true "" "plot avg-co"
+
+MONITOR
+1057
+165
+1161
+210
+NIL
+unmet-demand
+17
+1
+11
+
+PLOT
+814
+264
+1014
+414
+N Overtime
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot num-of-overtime"
+
+PLOT
+1015
+264
+1215
+414
+Unmet Demand
+NIL
+NIL
+0.0
+10.0
+0.0
+1.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot unmet-demand"
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -3330,7 +3389,7 @@ NetLogo 6.0.4
       <value value="240"/>
     </enumeratedValueSet>
   </experiment>
-  <experiment name="2020-PILOT-2" repetitions="1" runMetricsEveryStep="true">
+  <experiment name="2020-PILOT-2.1" repetitions="1" runMetricsEveryStep="true">
     <setup>setup</setup>
     <go>go</go>
     <metric>avg-both-ta</metric>
@@ -3344,6 +3403,9 @@ NetLogo 6.0.4
     <metric>avg-nox</metric>
     <metric>avg-pm</metric>
     <metric>avg-thc</metric>
+    <metric>num-of-overtime</metric>
+    <metric>unmet-demand</metric>
+    <metric>crane-utilization</metric>
     <enumeratedValueSet variable="sequencing">
       <value value="&quot;overbook-admin-strict&quot;"/>
     </enumeratedValueSet>
@@ -3356,17 +3418,20 @@ NetLogo 6.0.4
     <enumeratedValueSet variable="overbook-ratio">
       <value value="-0.1"/>
       <value value="0"/>
-      <value value="0.2"/>
-      <value value="0.4"/>
-      <value value="0.7"/>
-      <value value="0.9"/>
+      <value value="0.25"/>
+      <value value="0.5"/>
+      <value value="0.75"/>
+      <value value="1"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="no-shows">
       <value value="0"/>
       <value value="0.1"/>
       <value value="0.2"/>
       <value value="0.3"/>
+      <value value="0.4"/>
       <value value="0.5"/>
+      <value value="0.6"/>
+      <value value="0.7"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="interval">
       <value value="60"/>
