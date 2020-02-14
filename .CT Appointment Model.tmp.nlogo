@@ -215,12 +215,17 @@ to go
 
     init-container
     init-client
-    do-appointment sessions
 
+    ;if ob-ratio is negative, then only walkins, else use appointment system
+    ifelse overbook-ratio < 0 [
+      do-walk-in sessions
+    ][
+      do-appointment sessions
+    ]
   ]
 
   ;on-arrival procedure
-  do-walk-in
+  ;do-walk-in sessions
   do-arrive
   appointment-arrival
   do-move
@@ -308,11 +313,13 @@ to do-move
   ]
   ]
 
-  ; current limit number of trucks serviced
-  let current-occupation slot-per-session * sessions
-  ; check slot utilization, if exceeds 100% then stop
-  if slot-utilization > 1 or num-trucks-serviced >= current-occupation [stop]
-
+  ;if overbook-ratio negative, disable slot capping
+  if overbook-ratio >= 0 [
+    ; current limit number of trucks serviced
+    let current-occupation slot-per-session * sessions
+    ; check slot utilization, if exceeds 100% then stop
+    if slot-utilization > 1 or num-trucks-serviced >= current-occupation [stop]
+  ]
 
   ; move
   if the-truck = nobody [stop]
@@ -582,29 +589,73 @@ to do-appointment [session-id] ; appointments are made in each beginning of sess
   set total-actual-bookings count clients with [overb? = true] + slot-per-session
 end
 
-to do-walk-in ; walk ins are generated each interval (second),
-  ifelse current-interval = interval [
-    let the-client one-of clients with [cargo = nobody]
-    if (the-client = nobody) [stop]
-    let the-cargo one-of containers with [my-truck = nobody and pick-me = false]
-    if random-float 1.0 < walk-ins [
-      ask the-client [
-;        if (cargo = nobody) [die stop] ; all stacks are full!!
-        set book? false
-        set my-start-time ticks
-        set color yellow
-        set cargo the-cargo
-        ask cargo [
+;to do-walk-in ; walk ins are generated each interval (second),
+;  ifelse current-interval = interval [
+;    let the-client one-of clients with [cargo = nobody]
+;    if (the-client = nobody) [stop]
+;    let the-cargo one-of containers with [my-truck = nobody and pick-me = false]
+;    if random-float 1.0 < walk-ins [
+;      ask the-client [
+;;        if (cargo = nobody) [die stop] ; all stacks are full!!
+;        set book? false
+;        set my-start-time ticks
+;        set color yellow
+;        set cargo the-cargo
+;        ask cargo [
           ; set color walk in
-          set color yellow
-          set size 1]
+;          set color yellow
+;          set size 1]
+;        set my-truck nobody
+;      ]
+;    ]
+;    set current-interval 0
+;  ][
+;  set current-interval current-interval + 1
+;  ]
+;end
+
+to do-walk-in [session-id] ; walk ins are generated each interval (second),
+
+  ;id demand for current session
+  let demand-this-ses 0
+  if session-id = 1 [set demand-this-ses demand1]
+  if session-id = 2 [set demand-this-ses demand2]
+  if session-id = 3 [set demand-this-ses demand3]
+  if session-id = 4 [set demand-this-ses demand4]
+  if session-id = 5 [set demand-this-ses demand5]
+  if session-id = 6 [set demand-this-ses demand6]
+  if session-id = 7 [set demand-this-ses demand7]
+  if session-id = 8 [set demand-this-ses demand8]
+  if session-id = 9 [set demand-this-ses demand9]
+  if session-id = 10 [set demand-this-ses demand10]
+
+
+    repeat demand-this-ses [
+      let the-client one-of clients with [book? = 0]
+      if (the-client = nobody) [stop]
+
+      let the-cargo one-of containers with [my-truck = nobody and pick-me = false]
+      let chosen-stack [my-stack] of the-cargo
+
+      if (the-cargo = nobody) [stop]
+      ask the-client [
+        set book? true
+        set overb? false
+        set my-start-time ticks
+        set color green
+        set cargo the-cargo
+        if (cargo = nobody) [die stop] ; all stacks are full!!
+        ask cargo [
+
+          ; set color appointment
+          set color green
+          set size 1
+        ]
         set my-truck nobody
+        set my-arrival-time (random 3600) + ticks
       ]
     ]
-    set current-interval 0
-  ][
-  set current-interval current-interval + 1
-  ]
+
 end
 
 to do-arrive ;ask a client to create his/her truck
@@ -813,6 +864,38 @@ end
 ;;;;;;;;; emission reporters, only for single crane problem
 ;;;;;;;;;;;;;;;;;
 
+;;;;; emission per service
+to-report avg-co2
+  let x num-trucks-serviced
+  if x = 0 [report 0]
+  report total-truck-co2 / x
+end
+
+to-report avg-co
+  let x num-trucks-serviced
+  if x = 0 [report 0]
+  report total-truck-co / x
+end
+
+to-report avg-thc
+  let x num-trucks-serviced
+  if x = 0 [report 0]
+  report total-truck-thc / x
+end
+
+to-report avg-pm
+  let x num-trucks-serviced
+  if x = 0 [report 0]
+  report total-truck-pm / x
+end
+
+to-report avg-nox
+  let x num-trucks-serviced
+  if x = 0 [report 0]
+  report total-truck-nox / x
+end
+
+;;;;;;
 to-report crane-emission-activity-co2
   let x one-of cranes
   if x = nobody [report 0]
@@ -1776,10 +1859,10 @@ PENS
 "walk-in" 1.0 0 -2674135 true "" "plot avg-walkin-wt"
 
 PLOT
-7
-570
-207
-720
+13
+797
+213
+947
 Crane Utilization
 NIL
 NIL
@@ -1858,10 +1941,10 @@ sec
 HORIZONTAL
 
 PLOT
-815
-264
-1015
-414
+7
+418
+207
+568
 N Trucks Serviced
 NIL
 NIL
@@ -1926,10 +2009,10 @@ count clients with [book? = true and cargo = nobody]
 11
 
 PLOT
-410
-570
-610
-720
+416
+797
+616
+947
 Spillover
 NIL
 NIL
@@ -2146,10 +2229,10 @@ PENS
 "overbook" 1.0 0 -2674135 true "" "plot total-actual-bookings"
 
 PLOT
-209
-570
-409
-720
+215
+797
+415
+947
 Queue Length
 NIL
 NIL
@@ -2164,10 +2247,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot queue-length"
 
 PLOT
-7
-418
-207
-568
+13
+645
+213
+795
 Total CO2
 NIL
 NIL
@@ -2184,10 +2267,10 @@ PENS
 "crane" 1.0 0 -10899396 true "" "plot total-crane-co2"
 
 PLOT
-208
-418
-408
-568
+214
+645
+414
+795
 Total CO
 NIL
 NIL
@@ -2204,10 +2287,10 @@ PENS
 "crane" 1.0 0 -10899396 true "" "plot total-crane-co"
 
 PLOT
-410
-417
-610
-567
+416
+644
+616
+794
 Total NOx
 NIL
 NIL
@@ -2224,10 +2307,10 @@ PENS
 "crane" 1.0 0 -10899396 true "" "plot total-crane-nox"
 
 PLOT
-612
-417
-812
-567
+618
+644
+818
+794
 Total PM
 NIL
 NIL
@@ -2244,10 +2327,10 @@ PENS
 "crane" 1.0 0 -10899396 true "" "plot total-crane-pm"
 
 PLOT
-814
-417
-1014
-567
+820
+644
+1020
+794
 Total THC
 NIL
 NIL
@@ -2348,9 +2431,9 @@ SLIDER
 129
 overbook-ratio
 overbook-ratio
-0
+-0.1
 1
-0.0
+-0.1
 0.1
 1
 NIL
@@ -2390,10 +2473,10 @@ sec
 HORIZONTAL
 
 PLOT
-1016
-263
-1216
-413
+208
+417
+408
+567
 Slot Utilization
 NIL
 NIL
@@ -2443,6 +2526,62 @@ engine-off-time
 1
 sec
 HORIZONTAL
+
+PLOT
+813
+415
+1013
+565
+Emission / Service (2)
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+true
+"" ""
+PENS
+"THC" 1.0 0 -955883 true "" "plot avg-thc"
+"PM" 1.0 0 -6459832 true "" "plot avg-pm"
+"NOx" 1.0 0 -13791810 true "" "plot avg-nox"
+
+PLOT
+410
+416
+610
+566
+(CO2) Emission / Service
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot avg-co2"
+
+PLOT
+611
+416
+811
+566
+(CO) Emission / Service
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot avg-co"
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -3090,6 +3229,132 @@ NetLogo 6.0.4
       <value value="300"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="overbook-ratio">
+      <value value="0"/>
+      <value value="0.2"/>
+      <value value="0.4"/>
+      <value value="0.7"/>
+      <value value="0.9"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="no-shows">
+      <value value="0"/>
+      <value value="0.1"/>
+      <value value="0.2"/>
+      <value value="0.3"/>
+      <value value="0.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="interval">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="opportunistic?">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="slot-per-session">
+      <value value="4"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="walk-ins">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="n-demand">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="base-admin-time">
+      <value value="600"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="overbook?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="crane-pick-goal-function">
+      <value value="&quot;FCFS&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="max-late-value">
+      <value value="240"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="2020-PILOT-1-testonly" repetitions="1" runMetricsEveryStep="true">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>avg-both-ta</metric>
+    <metric>avg-both-qt</metric>
+    <metric>avg-both-st</metric>
+    <metric>avg-both-ad</metric>
+    <metric>num-trucks-serviced</metric>
+    <metric>slot-utilization</metric>
+    <metric>total-truck-co2</metric>
+    <metric>total-truck-co</metric>
+    <metric>total-truck-nox</metric>
+    <metric>total-truck-pm</metric>
+    <metric>total-truck-thc</metric>
+    <enumeratedValueSet variable="sequencing">
+      <value value="&quot;overbook-admin-strict&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="late-rate">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="engine-off-time">
+      <value value="300"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="overbook-ratio">
+      <value value="0"/>
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="no-shows">
+      <value value="0"/>
+      <value value="0.1"/>
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="interval">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="opportunistic?">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="slot-per-session">
+      <value value="4"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="walk-ins">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="n-demand">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="base-admin-time">
+      <value value="600"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="overbook?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="crane-pick-goal-function">
+      <value value="&quot;FCFS&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="max-late-value">
+      <value value="240"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="2020-PILOT-2" repetitions="1" runMetricsEveryStep="true">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>avg-both-ta</metric>
+    <metric>avg-both-qt</metric>
+    <metric>avg-both-st</metric>
+    <metric>avg-both-ad</metric>
+    <metric>num-trucks-serviced</metric>
+    <metric>slot-utilization</metric>
+    <metric>avg-co2</metric>
+    <metric>avg-co</metric>
+    <metric>avg-nox</metric>
+    <metric>avg-pm</metric>
+    <metric>avg-thc</metric>
+    <enumeratedValueSet variable="sequencing">
+      <value value="&quot;overbook-admin-strict&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="late-rate">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="engine-off-time">
+      <value value="300"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="overbook-ratio">
+      <value value="-0.1"/>
       <value value="0"/>
       <value value="0.2"/>
       <value value="0.4"/>
